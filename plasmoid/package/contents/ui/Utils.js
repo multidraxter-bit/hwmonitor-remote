@@ -267,6 +267,7 @@ function summarizeNode(snapshot, thresholds) {
             primary: cpuTemp ? cpuTemp.value : "--",
             secondary: cpuLoad ? cpuLoad.value : "No load sensor",
             tertiary: cpuCoreHot ? cpuCoreHot.name + " " + cpuCoreHot.value : "No core max",
+            rawPrimary: cpuTemp ? cpuTemp.rawValue : null,
             severity: cpuTemp ? rowSeverity({ kind: "sensor", type: "Temperature", value: cpuTemp.rawValue }, thresholds) : "normal"
         },
         {
@@ -274,6 +275,7 @@ function summarizeNode(snapshot, thresholds) {
             primary: gpuTemp ? gpuTemp.value : "--",
             secondary: gpuLoad ? gpuLoad.value : "No load sensor",
             tertiary: gpuPower ? gpuPower.value : "No power sensor",
+            rawPrimary: gpuTemp ? gpuTemp.rawValue : null,
             severity: gpuTemp ? rowSeverity({ kind: "sensor", type: "Temperature", value: gpuTemp.rawValue }, thresholds) : "normal"
         },
         {
@@ -281,6 +283,7 @@ function summarizeNode(snapshot, thresholds) {
             primary: fan ? fan.value : "--",
             secondary: fan ? fan.name : "No fan sensor",
             tertiary: cpuCoreHot ? "Peak " + cpuCoreHot.value : "",
+            rawPrimary: fan ? fan.rawValue : null,
             severity: "normal"
         },
         {
@@ -288,6 +291,7 @@ function summarizeNode(snapshot, thresholds) {
             primary: drive ? drive.value : "--",
             secondary: drive ? drive.name : "No drive temp",
             tertiary: "",
+            rawPrimary: drive ? drive.rawValue : null,
             severity: drive ? rowSeverity({ kind: "sensor", type: "Temperature", value: drive.rawValue }, thresholds) : "normal"
         }
     ]
@@ -340,4 +344,74 @@ function collectAlertSensors(rows) {
         return a.severity === "critical" ? -1 : 1
     })
     return alerts
+}
+
+function collectFocusSensors(rows) {
+    var picks = []
+    var desired = [
+        { label: "CPU Package", match: ["Package", "CPU Package"], type: "Temperature" },
+        { label: "CPU Load", match: ["Total", "CPU Total"], type: "Load" },
+        { label: "GPU Hotspot", match: ["Hot Spot", "Hotspot"], type: "Temperature" },
+        { label: "GPU Load", match: ["GPU Core", "D3D 3D", "Core"], type: "Load" },
+        { label: "GPU Power", match: ["Board Power", "GPU Power", "Total Board"], type: "Power" },
+        { label: "CPU Fan", match: ["CPU", "Fan"], type: "Fan" },
+        { label: "Drive Temp", match: ["Temperature", "Assembly"], type: "Temperature" }
+    ]
+
+    for (var d = 0; d < desired.length; d++) {
+        var best = null
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i]
+            if (row.kind !== "sensor")
+                continue
+            if (desired[d].type && row.sensorType !== desired[d].type)
+                continue
+
+            var score = 0
+            for (var h = 0; h < desired[d].match.length; h++) {
+                if (row.name.indexOf(desired[d].match[h]) !== -1 || row.path.indexOf(desired[d].match[h]) !== -1)
+                    score += 10
+            }
+            if (score === 0)
+                continue
+
+            if (!best || score > best.score) {
+                best = {
+                    score: score,
+                    label: desired[d].label,
+                    value: row.value,
+                    path: row.path,
+                    severity: row.severity
+                }
+            }
+        }
+        if (best)
+            picks.push(best)
+    }
+
+    return picks.slice(0, 6)
+}
+
+function collectCpuCoreRows(rows) {
+    var out = []
+    for (var i = 0; i < rows.length; i++) {
+        var row = rows[i]
+        if (row.kind !== "sensor")
+            continue
+        if (row.sensorType !== "Temperature")
+            continue
+        if (row.name.indexOf("Core") === -1 && row.name.indexOf("P-core") === -1 && row.name.indexOf("E-core") === -1)
+            continue
+        if (row.path.indexOf("Intel") === -1 && row.path.indexOf("AMD") === -1 && row.path.indexOf("Ryzen") === -1 && row.path.indexOf("Core") === -1)
+            continue
+        out.push({
+            name: row.name,
+            value: row.value,
+            rawValue: row.rawValue,
+            severity: row.severity
+        })
+    }
+
+    out.sort(function(a, b) { return (b.rawValue || 0) - (a.rawValue || 0) })
+    return out.slice(0, 12)
 }

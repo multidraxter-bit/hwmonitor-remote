@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import "." as Local
 
 Item {
     implicitWidth: Kirigami.Units.gridUnit * 32
@@ -133,6 +134,13 @@ Item {
                             color: badgeColor(modelData.severity)
                         }
 
+                        Local.Sparkline {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 22
+                            values: modelData.history || []
+                            lineColor: badgeColor(modelData.severity)
+                        }
+
                         QQC2.Label {
                             Layout.fillWidth: true
                             text: modelData.secondary
@@ -147,6 +155,125 @@ Item {
                             color: Kirigami.Theme.disabledTextColor
                             elide: Text.ElideRight
                             font.pixelSize: 11
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            radius: 12
+            color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.82)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.08)
+            implicitHeight: focusLayout.implicitHeight + 18
+
+            ColumnLayout {
+                id: focusLayout
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                QQC2.Label {
+                    text: "Focus Sensors"
+                    font.bold: true
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Repeater {
+                        model: root.focusSensors
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            radius: 999
+                            color: Qt.rgba(badgeColor(modelData.severity).r, badgeColor(modelData.severity).g, badgeColor(modelData.severity).b, 0.14)
+                            border.width: 1
+                            border.color: Qt.rgba(badgeColor(modelData.severity).r, badgeColor(modelData.severity).g, badgeColor(modelData.severity).b, 0.45)
+                            implicitWidth: chipRow.implicitWidth + 18
+                            implicitHeight: chipRow.implicitHeight + 8
+
+                            RowLayout {
+                                id: chipRow
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                QQC2.Label {
+                                    text: modelData.label
+                                    font.bold: true
+                                }
+
+                                QQC2.Label {
+                                    text: modelData.value
+                                    color: badgeColor(modelData.severity)
+                                    font.bold: true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            radius: 12
+            color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.82)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.08)
+            visible: root.cpuCoreRows.length > 0
+            implicitHeight: coreLayout.implicitHeight + 18
+
+            ColumnLayout {
+                id: coreLayout
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                QQC2.Label {
+                    text: "Hottest CPU Cores"
+                    font.bold: true
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 3
+                    columnSpacing: 8
+                    rowSpacing: 6
+
+                    Repeater {
+                        model: root.cpuCoreRows
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            radius: 10
+                            color: Qt.rgba(badgeColor(modelData.severity).r, badgeColor(modelData.severity).g, badgeColor(modelData.severity).b, 0.10)
+                            border.width: 1
+                            border.color: Qt.rgba(badgeColor(modelData.severity).r, badgeColor(modelData.severity).g, badgeColor(modelData.severity).b, 0.35)
+                            implicitHeight: coreRow.implicitHeight + 10
+
+                            RowLayout {
+                                id: coreRow
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 6
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: modelData.name
+                                    elide: Text.ElideRight
+                                }
+
+                                QQC2.Label {
+                                    text: modelData.value
+                                    color: badgeColor(modelData.severity)
+                                    font.bold: true
+                                }
+                            }
                         }
                     }
                 }

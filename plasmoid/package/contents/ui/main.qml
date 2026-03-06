@@ -22,6 +22,9 @@ PlasmoidItem {
     property var baseRows: []
     property var visibleRows: []
     property var summaryCards: []
+    property var historyMap: ({})
+    property var focusSensors: []
+    property var cpuCoreRows: []
     property var sensorCounts: ({ total: 0, temperature: 0, load: 0, cooling: 0, power: 0, clock: 0, storage: 0, other: 0 })
     property var expandedPaths: ({})
     property string statusText: "Waiting for first refresh"
@@ -82,6 +85,9 @@ PlasmoidItem {
                 summaryCards = Utils.summarizeNode(parsed, thresholds)
                 baseRows = Utils.buildRows(parsed, expandedPaths, "", "all", thresholds)
                 allRows = Utils.buildRows(parsed, expandedPaths, searchText, activeCategory, thresholds)
+                focusSensors = Utils.collectFocusSensors(baseRows)
+                cpuCoreRows = Utils.collectCpuCoreRows(baseRows)
+                updateHistories(summaryCards)
                 sensorCounts = Utils.countSensors(baseRows)
                 cpuSummary = summaryCards.length > 0 ? summaryCards[0].primary : "--"
                 gpuSummary = summaryCards.length > 1 ? summaryCards[1].primary : "--"
@@ -109,6 +115,24 @@ PlasmoidItem {
     function toggleExpanded(path) {
         expandedPaths[path] = !expandedPaths[path]
         applyFilters()
+    }
+
+    function updateHistories(cards) {
+        var nextMap = {}
+        for (var existingKey in historyMap)
+            nextMap[existingKey] = historyMap[existingKey]
+        for (var i = 0; i < cards.length; i++) {
+            var card = cards[i]
+            var key = card.title
+            var series = nextMap[key] ? nextMap[key].slice(0) : []
+            if (card.rawPrimary !== null && typeof card.rawPrimary !== "undefined")
+                series.push(card.rawPrimary)
+            if (series.length > 30)
+                series = series.slice(series.length - 30)
+            nextMap[key] = series
+            card.history = series
+        }
+        historyMap = nextMap
     }
 
     function maybeNotifyAlerts() {

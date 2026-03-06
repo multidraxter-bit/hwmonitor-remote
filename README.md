@@ -50,7 +50,7 @@ Fedora RPM packaging files are in:
 Built package path on this machine:
 
 ```text
-/home/loofi/rpmbuild/RPMS/noarch/hwmonitor-remote-0.3.0-1.fc43.noarch.rpm
+/home/loofi/rpmbuild/RPMS/noarch/hwmonitor-remote-0.3.1-1.fc43.noarch.rpm
 ```
 
 The standalone app now ships with a custom `hwremote-monitor` launcher icon generated from `logo.png`.

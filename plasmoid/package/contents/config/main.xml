@@ -11,5 +11,20 @@
     <entry name="refreshSeconds" type="Int">
       <default>5</default>
     </entry>
+    <entry name="warnTempC" type="Int">
+      <default>75</default>
+    </entry>
+    <entry name="criticalTempC" type="Int">
+      <default>90</default>
+    </entry>
+    <entry name="warnLoadPct" type="Int">
+      <default>80</default>
+    </entry>
+    <entry name="criticalLoadPct" type="Int">
+      <default>95</default>
+    </entry>
+    <entry name="notificationsEnabled" type="Bool">
+      <default>true</default>
+    </entry>
   </group>
 </kcfg>

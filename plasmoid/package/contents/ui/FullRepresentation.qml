@@ -139,6 +139,15 @@ Item {
                             color: Kirigami.Theme.disabledTextColor
                             elide: Text.ElideRight
                         }
+
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            visible: modelData.tertiary && modelData.tertiary.length > 0
+                            text: modelData.tertiary
+                            color: Kirigami.Theme.disabledTextColor
+                            elide: Text.ElideRight
+                            font.pixelSize: 11
+                        }
                     }
                 }
             }
@@ -258,7 +267,7 @@ Item {
                         QQC2.Label {
                             Layout.preferredWidth: 316
                             leftPadding: modelData.indent * 16
-                            text: modelData.name
+                            text: (modelData.hasChildren ? (modelData.expanded ? "▼ " : "▶ ") : "") + modelData.name
                             font.bold: modelData.kind !== "sensor"
                             elide: Text.ElideRight
                         }
@@ -284,6 +293,12 @@ Item {
                             horizontalAlignment: Text.AlignRight
                             color: Kirigami.Theme.disabledTextColor
                         }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: modelData.hasChildren
+                        onClicked: root.toggleExpanded(modelData.path)
                     }
                 }
             }

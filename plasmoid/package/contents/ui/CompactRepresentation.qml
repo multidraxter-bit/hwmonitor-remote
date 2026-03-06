@@ -15,10 +15,17 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 10
-        color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.78)
+        color: root.overallLevel === "critical"
+            ? Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.16)
+            : (root.overallLevel === "warn"
+                ? Qt.rgba(Kirigami.Theme.neutralTextColor.r, Kirigami.Theme.neutralTextColor.g, Kirigami.Theme.neutralTextColor.b, 0.16)
+                : Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.78))
         border.width: 1
-        border.color: root.refreshOk ? Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.4)
-                                      : Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.45)
+        border.color: root.refreshOk
+            ? (root.overallLevel === "critical"
+                ? Kirigami.Theme.negativeTextColor
+                : (root.overallLevel === "warn" ? Kirigami.Theme.neutralTextColor : Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.4)))
+            : Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.45)
 
         ColumnLayout {
             anchors.fill: parent
@@ -43,7 +50,7 @@ Item {
 
                 QQC2.Label {
                     Layout.fillWidth: true
-                    text: root.refreshOk ? "Live" : "Err"
+                    text: root.refreshOk ? (root.overallLevel === "critical" ? "Hot" : (root.overallLevel === "warn" ? "Warn" : "Live")) : "Err"
                     horizontalAlignment: Text.AlignRight
                     color: root.refreshOk ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.negativeTextColor
                 }
@@ -78,6 +85,15 @@ Item {
                     color: Kirigami.Theme.disabledTextColor
                     elide: Text.ElideRight
                 }
+            }
+
+            QQC2.Label {
+                Layout.fillWidth: true
+                visible: root.topAlertText.length > 0
+                text: root.topAlertText
+                color: root.overallLevel === "critical" ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.neutralTextColor
+                elide: Text.ElideRight
+                font.pixelSize: 11
             }
         }
     }

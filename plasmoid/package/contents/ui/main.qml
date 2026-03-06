@@ -5,6 +5,7 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
+import org.kde.notification
 import "." as Local
 import "Utils.js" as Utils
 
@@ -18,9 +19,11 @@ PlasmoidItem {
 
     property var snapshot: ({})
     property var allRows: []
+    property var baseRows: []
     property var visibleRows: []
     property var summaryCards: []
     property var sensorCounts: ({ total: 0, temperature: 0, load: 0, cooling: 0, power: 0, clock: 0, storage: 0, other: 0 })
+    property var expandedPaths: ({})
     property string statusText: "Waiting for first refresh"
     property string sourceLabel: plasmoid.configuration.source
     property string cpuSummary: "--"
@@ -31,6 +34,16 @@ PlasmoidItem {
     property string activeCategory: "all"
     property bool refreshOk: false
     property string lastError: ""
+    property string overallLevel: "normal"
+    property string lastAlertSignature: ""
+    property string topAlertText: ""
+
+    readonly property var thresholds: ({
+        warnTempC: plasmoid.configuration.warnTempC,
+        criticalTempC: plasmoid.configuration.criticalTempC,
+        warnLoadPct: plasmoid.configuration.warnLoadPct,
+        criticalLoadPct: plasmoid.configuration.criticalLoadPct
+    })
 
     switchWidth: Kirigami.Units.gridUnit * 32
     switchHeight: Kirigami.Units.gridUnit * 34
@@ -66,14 +79,17 @@ PlasmoidItem {
                 }
 
                 snapshot = parsed
-                allRows = Utils.flattenTree(parsed)
-                summaryCards = Utils.summarizeNode(parsed)
-                sensorCounts = Utils.countSensors(allRows)
+                summaryCards = Utils.summarizeNode(parsed, thresholds)
+                baseRows = Utils.buildRows(parsed, expandedPaths, "", "all", thresholds)
+                allRows = Utils.buildRows(parsed, expandedPaths, searchText, activeCategory, thresholds)
+                sensorCounts = Utils.countSensors(baseRows)
                 cpuSummary = summaryCards.length > 0 ? summaryCards[0].primary : "--"
                 gpuSummary = summaryCards.length > 1 ? summaryCards[1].primary : "--"
                 coolingSummary = summaryCards.length > 2 ? summaryCards[2].primary : "--"
                 driveSummary = summaryCards.length > 3 ? summaryCards[3].primary : "--"
-                visibleRows = Utils.filterRows(allRows, searchText, activeCategory)
+                visibleRows = allRows
+                overallLevel = Utils.overallSeverity(summaryCards)
+                maybeNotifyAlerts()
                 refreshOk = true
                 lastError = ""
                 statusText = "Updated " + parsed.generatedAt
@@ -86,7 +102,32 @@ PlasmoidItem {
     }
 
     function applyFilters() {
-        visibleRows = Utils.filterRows(allRows, searchText, activeCategory)
+        visibleRows = Utils.buildRows(snapshot, expandedPaths, searchText, activeCategory, thresholds)
+        allRows = visibleRows
+    }
+
+    function toggleExpanded(path) {
+        expandedPaths[path] = !expandedPaths[path]
+        applyFilters()
+    }
+
+    function maybeNotifyAlerts() {
+        var alerts = Utils.collectAlertSensors(baseRows)
+        if (alerts.length === 0) {
+            topAlertText = ""
+            lastAlertSignature = ""
+            return
+        }
+
+        topAlertText = alerts[0].name + " " + alerts[0].value
+        var signature = alerts[0].path + "|" + alerts[0].severity + "|" + alerts[0].value
+        if (!plasmoid.configuration.notificationsEnabled || signature === lastAlertSignature)
+            return
+
+        lastAlertSignature = signature
+        notification.title = alerts[0].severity === "critical" ? "Critical sensor alert" : "Sensor warning"
+        notification.text = alerts[0].name + " at " + alerts[0].value
+        notification.sendEvent()
     }
 
     Plasma5Support.DataSource {
@@ -127,6 +168,17 @@ PlasmoidItem {
         function onSourceChanged() {
             root.refresh()
         }
+        function onWarnTempCChanged() { root.refresh() }
+        function onCriticalTempCChanged() { root.refresh() }
+        function onWarnLoadPctChanged() { root.refresh() }
+        function onCriticalLoadPctChanged() { root.refresh() }
+    }
+
+    Notification {
+        id: notification
+        componentName: "com.github.loofi.hwremotemonitor"
+        eventId: "sensor-alert"
+        appName: "HWMonitor Remote"
     }
 
     Component.onCompleted: refresh()

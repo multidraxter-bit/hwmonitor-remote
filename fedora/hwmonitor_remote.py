@@ -203,9 +203,9 @@ class SensorApp:
         filter_bar.columnconfigure(9, weight=1)
         ttk.Label(explorer, textvariable=self.hint_var, style="Muted.TLabel").pack(anchor="w", pady=(2, 8))
 
-        tree_frame = ttk.Frame(explorer, style="Card.TFrame", padding=6)
-        tree_frame.pack(fill="both", expand=True)
-        self.tree = ttk.Treeview(tree_frame, columns=("value", "min", "max"), show="tree headings", selectmode="browse")
+        self.tree_frame = ttk.Frame(explorer, style="Card.TFrame", padding=6)
+        self.tree_frame.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(self.tree_frame, columns=("value", "min", "max"), show="tree headings", selectmode="browse")
         self.tree.heading("#0", text="Sensor", command=lambda: self._sort_main_tree("#0", numeric=False))
         self.tree.heading("value", text="Value", command=lambda: self._sort_main_tree("value", numeric=True))
         self.tree.heading("min", text="Min", command=lambda: self._sort_main_tree("min", numeric=True))
@@ -224,14 +224,14 @@ class SensorApp:
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Double-1>", self._toggle_selected_favorite)
         self.tree.bind("<Button-3>", self._show_tree_context_menu)
-        yscroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        xscroll = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        yscroll = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
+        xscroll = ttk.Scrollbar(self.tree_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
         yscroll.grid(row=0, column=1, sticky="ns")
         xscroll.grid(row=1, column=0, sticky="ew")
-        tree_frame.rowconfigure(0, weight=1)
-        tree_frame.columnconfigure(0, weight=1)
+        self.tree_frame.rowconfigure(0, weight=1)
+        self.tree_frame.columnconfigure(0, weight=1)
 
         self.detail_frame = ttk.Frame(explorer, style="Card.TFrame", padding=8)
         # Not packed initially — shown only when a sensor is selected
@@ -592,6 +592,7 @@ class SensorApp:
 
     def _restore_selection(self) -> None:
         if not self.selected_path:
+            self._on_tree_select()
             return
         for item_id, path in self.item_paths.items():
             if path == self.selected_path:
@@ -600,6 +601,7 @@ class SensorApp:
                 self.tree.see(item_id)
                 self._on_tree_select()
                 return
+        self._on_tree_select()  # path not found in rebuilt tree
 
     def _show_tree_context_menu(self, event) -> None:
         item_id = self.tree.identify_row(event.y)
@@ -697,7 +699,7 @@ class SensorApp:
         self.detail_name_var.set(name)
         self.detail_meta_var.set(f"{node_type}  |  {path}")
         if kind == "sensor":
-            self.detail_frame.pack(fill="x", pady=(8, 0))
+            self.detail_frame.pack(fill="x", pady=(8, 0), after=self.tree_frame)
             value_text = self._format_value(node.get("value"), unit) or "--"
             min_text = self._format_value(node.get("min"), unit) or "--"
             max_text = self._format_value(node.get("max"), unit) or "--"

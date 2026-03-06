@@ -66,6 +66,7 @@ class SensorApp:
         self.detail_range_var = tk.StringVar(value="")
         self.detail_history_var = tk.StringVar(value="")
         self.hint_var = tk.StringVar(value="F5 refresh  |  Ctrl+F search  |  Double-click sensor to pin")
+        self._banner_dismissed = False
         self._load_saved_state()
 
         self._build_ui()
@@ -135,6 +136,31 @@ class SensorApp:
         interval_box = ttk.Combobox(controls, width=8, state="readonly", textvariable=self.interval_var, values=(1000, 2000, 3000, 5000, 10000))
         interval_box.grid(row=0, column=5, padx=(6, 0))
         interval_box.bind("<<ComboboxSelected>>", lambda _event: self._reschedule())
+
+        self.alert_banner = tk.Frame(outer, bg="#7c2020", padx=10, pady=6)
+        # Not packed by default — only shown when alerts exist
+
+        self.alert_text_var = tk.StringVar()
+        alert_label = tk.Label(
+            self.alert_banner,
+            textvariable=self.alert_text_var,
+            bg="#7c2020",
+            fg="#ffffff",
+            font=("DejaVu Sans", 10, "bold"),
+            anchor="w",
+        )
+        alert_label.pack(side="left", fill="x", expand=True)
+
+        alert_dismiss = tk.Button(
+            self.alert_banner,
+            text="x",
+            bg="#7c2020",
+            fg="#ffffff",
+            relief="flat",
+            font=("DejaVu Sans", 10),
+            command=self._dismiss_alert_banner,
+        )
+        alert_dismiss.pack(side="right")
 
         body = ttk.Panedwindow(outer, orient="horizontal")
         body.pack(fill="both", expand=True, pady=(10, 0))
@@ -326,10 +352,49 @@ class SensorApp:
         self._update_hardware_choices(payload)
         self._update_overview(payload)
         self._rebuild_tree()
+        rows = self._flatten_rows(payload)
+        self._update_alert_banner(rows)
         generated = payload.get("generatedAt", "unknown time")
         self.status_var.set(f"Updated in {elapsed_ms} ms, snapshot {generated}")
         self.hint_var.set("F5 refresh  |  Ctrl+F search  |  Double-click sensor to pin")
         self._reschedule()
+
+    def _dismiss_alert_banner(self) -> None:
+        self._banner_dismissed = True
+        self.alert_banner.pack_forget()
+
+    def _update_alert_banner(self, rows: list[SensorRow]) -> None:
+        breached = [
+            row for row in rows
+            if row.kind == "sensor"
+            and row.value is not None
+            and SensorApp._severity_for(row.sensor_type, row.value) in ("warn", "critical")
+        ]
+        if not breached:
+            self.alert_banner.pack_forget()
+            self._banner_dismissed = False
+            return
+
+        if self._banner_dismissed:
+            return
+
+        parts = [f"{row.name} {self._format_value(row.value, row.unit)}" for row in breached[:5]]
+        if len(breached) > 5:
+            parts.append(f"+{len(breached) - 5} more")
+
+        has_critical = any(
+            SensorApp._severity_for(r.sensor_type, r.value) == "critical" for r in breached
+        )
+        color = "#7c2020" if has_critical else "#7c5c00"
+        self.alert_banner.configure(bg=color)
+        for widget in self.alert_banner.winfo_children():
+            try:
+                widget.configure(bg=color)
+            except tk.TclError:
+                pass
+
+        self.alert_text_var.set("  ALERT:  " + "  |  ".join(parts))
+        self.alert_banner.pack(fill="x", pady=(4, 0), before=self.body)
 
     def _set_initial_layout(self) -> None:
         try:

@@ -73,3 +73,26 @@ def test_compute_alerts_recovery_clears():
     existing = {"CPU/Temperatures/Package": "critical"}
     _, new_states = SensorApp._compute_alerts_static(rows, existing)
     assert "CPU/Temperatures/Package" not in new_states
+
+
+def test_matches_severity_filter_active():
+    assert SensorApp._matches_severity_filter("critical", "active")
+    assert SensorApp._matches_severity_filter("warn", "active")
+    assert not SensorApp._matches_severity_filter("cool", "active")
+
+
+def test_matches_severity_filter_exact():
+    assert SensorApp._matches_severity_filter("critical", "critical")
+    assert not SensorApp._matches_severity_filter("warn", "critical")
+
+
+def test_delta_text_rising():
+    assert SensorApp._delta_text([70.0, 72.0], "C") == "rising +2 C"
+
+
+def test_delta_text_falling():
+    assert SensorApp._delta_text([72.0, 70.0], "C") == "falling -2 C"
+
+
+def test_delta_text_steady_with_short_history():
+    assert SensorApp._delta_text([70.0], "C") == "steady"

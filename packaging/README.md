@@ -16,11 +16,25 @@ Install newest local RPM:
 ./scripts/install-rpm.sh
 ```
 
+The RPM installs:
+
+- the launcher entry: `/usr/share/applications/hwremote-monitor.desktop`
+- hicolor app icons: `/usr/share/icons/hicolor/*/apps/hwremote-monitor.png`
+- runtime window icon assets: `/usr/share/hwmonitor-remote/assets/icons/`
+
 Uninstall:
 
 ```bash
 ./scripts/uninstall-rpm.sh
 ```
+
+## Branding assets
+
+The branded app icon is generated from the repository root `logo.png`.
+
+- source image: `logo.png`
+- runtime icon files used by the standalone app: `assets/icons/`
+- packaged Linux desktop icon sizes: `packaging/linux/icons/hicolor/`
 
 ## GitHub Actions
 

@@ -46,8 +46,6 @@ class SensorApp:
         self.current_payload: dict = {}
         self.summary_value_vars: dict[str, tk.StringVar] = {}
         self.summary_detail_vars: dict[str, tk.StringVar] = {}
-        self.dashboard_value_vars: dict[str, tk.StringVar] = {}
-        self.dashboard_detail_vars: dict[str, tk.StringVar] = {}
         self.favorite_rows: list[tuple[str, str, str]] = []
         self.cpu_core_rows: list[tuple[str, str]] = []
         self.favorite_paths: set[str] = set()
@@ -204,26 +202,6 @@ class SensorApp:
         filter_bar.columnconfigure(1, weight=1)
         filter_bar.columnconfigure(9, weight=1)
         ttk.Label(explorer, textvariable=self.hint_var, style="Muted.TLabel").pack(anchor="w", pady=(2, 8))
-
-        dashboard_bar = ttk.Frame(explorer, style="Panel.TFrame")
-        dashboard_bar.pack(fill="x", pady=(8, 8))
-        for idx, title in enumerate(("CPU Live", "GPU Live", "Storage Live")):
-            dash_card = ttk.Frame(dashboard_bar, style="Card.TFrame", padding=8)
-            dash_card.grid(row=0, column=idx, sticky="nsew", padx=(0 if idx == 0 else 8, 0))
-            dashboard_bar.columnconfigure(idx, weight=1)
-            ttk.Label(dash_card, text=title, style="CardTitle.TLabel").pack(anchor="w")
-            value_var = tk.StringVar(value="--")
-            detail_var = tk.StringVar(value="")
-            ttk.Label(dash_card, textvariable=value_var, style="CardValue.TLabel").pack(anchor="w", pady=(2, 0))
-            ttk.Label(dash_card, textvariable=detail_var, style="CardDetail.TLabel").pack(anchor="w", pady=(2, 0))
-            self.dashboard_value_vars[title] = value_var
-            self.dashboard_detail_vars[title] = detail_var
-
-        favorites_bar = ttk.Frame(explorer, style="Card.TFrame", padding=6)
-        favorites_bar.pack(fill="x", pady=(8, 8))
-        ttk.Label(favorites_bar, text="Favorites", style="Section.TLabel").pack(anchor="w")
-        self.favorite_label = ttk.Label(favorites_bar, text="Waiting for data", style="Muted.TLabel")
-        self.favorite_label.pack(anchor="w", pady=(4, 0))
 
         tree_frame = ttk.Frame(explorer, style="Card.TFrame", padding=6)
         tree_frame.pack(fill="both", expand=True)
@@ -408,18 +386,8 @@ class SensorApp:
                 self.summary_value_vars[name].set("--")
                 self.summary_detail_vars[name].set("No sensor")
 
-        dashboard = {
-            "CPU Live": self._compose_dashboard_text(cpu_temp or cpu_load, cpu_load),
-            "GPU Live": self._compose_dashboard_text(gpu_temp, self._best_row(rows, ("nvidia", "radeon", "arc", "gpu"), ("gpu package", "board power", "gpu power", "package"), "Power", allow_zero=False)),
-            "Storage Live": self._compose_dashboard_text(drive_temp, self._best_row(rows, ("ssd", "nvme", "samsung", "wd", "kingston", "crucial"), ("total activity", "read activity", "write activity"), "Load", allow_zero=False)),
-        }
-        for name, (value_text, detail_text) in dashboard.items():
-            self.dashboard_value_vars[name].set(value_text)
-            self.dashboard_detail_vars[name].set(detail_text)
-
         favorites = self._favorite_rows(rows)
         self.favorite_rows = favorites
-        self.favorite_label.configure(text="  |  ".join(f"{label}: {value}" for label, _sensor, value in favorites) or "No favorite sensors found")
         self.favorites_tree.delete(*self.favorites_tree.get_children())
         self.favorite_item_paths.clear()
         for label, sensor, value in favorites:
@@ -799,24 +767,6 @@ class SensorApp:
         if not samples:
             return "no trend"
         return self._sparkline(samples)
-
-    def _compose_dashboard_text(self, primary: SensorRow | None, secondary: SensorRow | None) -> tuple[str, str]:
-        if not primary and not secondary:
-            return "--", "No live sensor"
-        if primary and secondary:
-            return self._value_text(primary), f"{self._badge_for_row(primary)} {primary.name}  |  {secondary.name} {self._value_text(secondary)}"
-        row = primary or secondary
-        return self._value_text(row), f"{self._badge_for_row(row)} {row.name}  {self._history_text(row.path)}"
-
-    def _badge_for_row(self, row: SensorRow | None) -> str:
-        if not row:
-            return "[idle]"
-        return {
-            "critical": "[crit]",
-            "warn": "[warn]",
-            "cool": "[ok]",
-            "normal": "[live]",
-        }.get(row.severity, "[live]")
 
     @staticmethod
     def _sparkline(samples: list[float]) -> str:

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=HWMonitor Remote
+Comment=Monitor detailed Windows hardware sensors remotely over SSH or HTTP
+Exec=hwremote-monitor
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;
+Keywords=hardware;monitor;temperature;sensors;windows;ssh;

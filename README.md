@@ -27,6 +27,19 @@ The launcher points to:
 /home/loofi/hwremote-monitor/fedora/hwmonitor_remote.py
 ```
 
+## RPM package
+
+Fedora RPM packaging files are in:
+
+- `packaging/rpm/hwmonitor-remote.spec`
+- `packaging/linux/hwremote-monitor.desktop`
+
+Built package path on this machine:
+
+```text
+/home/loofi/rpmbuild/RPMS/noarch/hwmonitor-remote-0.2.0-1.fc43.noarch.rpm
+```
+
 ## Optional mode: HTTP exporter
 
 If you later want the Windows machine to expose a local HTTP endpoint instead of per-refresh SSH calls:

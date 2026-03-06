@@ -24,6 +24,7 @@ PlasmoidItem {
     property var summaryCards: []
     property var historyMap: ({})
     property var focusSensors: []
+    property var favoriteRows: []
     property var cpuCoreRows: []
     property var sensorCounts: ({ total: 0, temperature: 0, load: 0, cooling: 0, power: 0, clock: 0, storage: 0, other: 0 })
     property var expandedPaths: ({})
@@ -48,8 +49,8 @@ PlasmoidItem {
         criticalLoadPct: plasmoid.configuration.criticalLoadPct
     })
 
-    switchWidth: inPanel ? Kirigami.Units.gridUnit * 32 : Kirigami.Units.gridUnit * 48
-    switchHeight: Kirigami.Units.gridUnit * 34
+    switchWidth: inPanel ? Kirigami.Units.gridUnit * 32 : Kirigami.Units.gridUnit * 56
+    switchHeight: inPanel ? Kirigami.Units.gridUnit * 34 : Kirigami.Units.gridUnit * 32
     preferredRepresentation: inPanel ? compactRepresentation : fullRepresentation
 
     toolTipMainText: "HWMonitor Remote"
@@ -86,6 +87,7 @@ PlasmoidItem {
                 baseRows = Utils.buildRows(parsed, expandedPaths, "", "all", thresholds)
                 allRows = Utils.buildRows(parsed, expandedPaths, searchText, activeCategory, thresholds)
                 focusSensors = Utils.collectFocusSensors(baseRows)
+                favoriteRows = Utils.collectFavoriteRows(baseRows)
                 cpuCoreRows = Utils.collectCpuCoreRows(baseRows)
                 updateHistories(summaryCards)
                 sensorCounts = Utils.countSensors(baseRows)

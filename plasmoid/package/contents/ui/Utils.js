@@ -392,6 +392,47 @@ function collectFocusSensors(rows) {
     return picks.slice(0, 6)
 }
 
+function collectFavoriteRows(rows) {
+    var favorites = []
+    var seen = {}
+    var priority = [
+        ["CPU Package", "Package"],
+        ["CPU Load", "CPU Total"],
+        ["GPU Hotspot", "Hot Spot"],
+        ["GPU Load", "GPU Core"],
+        ["GPU Power", "Board Power"],
+        ["CPU Fan", "CPU"],
+        ["Drive Temp", "Temperature"]
+    ]
+
+    for (var p = 0; p < priority.length; p++) {
+        var label = priority[p][0]
+        var hint = priority[p][1]
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i]
+            if (row.kind !== "sensor")
+                continue
+            if (seen[row.path])
+                continue
+            if (row.name.indexOf(hint) === -1 && row.path.indexOf(hint) === -1)
+                continue
+            favorites.push({
+                label: label,
+                name: row.name,
+                value: row.value,
+                min: row.min,
+                max: row.max,
+                severity: row.severity,
+                path: row.path
+            })
+            seen[row.path] = true
+            break
+        }
+    }
+
+    return favorites.slice(0, 8)
+}
+
 function collectCpuCoreRows(rows) {
     var out = []
     for (var i = 0; i < rows.length; i++) {

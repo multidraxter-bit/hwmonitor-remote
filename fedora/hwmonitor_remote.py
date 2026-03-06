@@ -33,6 +33,8 @@ class SensorRow:
 
 
 class SensorApp:
+    _SEVERITY_ORDER: dict[str, int] = {"normal": 0, "cool": 0, "warn": 1, "critical": 2}
+
     def __init__(self, root: tk.Tk, url: str, interval_ms: int) -> None:
         self.root = root
         self.url_var = tk.StringVar(value=url)
@@ -51,6 +53,7 @@ class SensorApp:
         self.favorite_paths: set[str] = set()
         self.favorite_item_paths: dict[str, str] = {}
         self.history: dict[str, list[float]] = {}
+        self.alert_states: dict[str, str] = {}
         self.item_paths: dict[str, str] = {}
         self.item_nodes: dict[str, dict] = {}
         self.open_paths: set[str] = set()
@@ -997,14 +1000,7 @@ class SensorApp:
         return mapping.get(sensor_type, "other")
 
     @staticmethod
-    def _severity(node: dict | SensorRow) -> str:
-        if isinstance(node, SensorRow):
-            sensor_type = node.sensor_type
-            value = node.value
-        else:
-            sensor_type = node.get("type", "")
-            value = node.get("value")
-
+    def _severity_for(sensor_type: str, value: float | None) -> str:
         if value is None:
             return "normal"
         if sensor_type == "Temperature":
@@ -1025,6 +1021,38 @@ class SensorApp:
             if value >= 220:
                 return "warn"
         return "normal"
+
+    @staticmethod
+    def _severity(node: dict | "SensorRow") -> str:
+        if isinstance(node, SensorRow):
+            return SensorApp._severity_for(node.sensor_type, node.value)
+        return SensorApp._severity_for(node.get("type", ""), node.get("value"))
+
+    @staticmethod
+    def _compute_alerts_static(
+        rows: list["SensorRow"],
+        existing_states: dict[str, str],
+    ) -> tuple[list[tuple[str, str, str, str]], dict[str, str]]:
+        """Returns (new_alerts, updated_states).
+        new_alerts: list of (path, name, severity, value_text) for sensors that worsened.
+        updated_states: new alert_states dict (only contains warn/critical sensors).
+        """
+        new_alerts: list[tuple[str, str, str, str]] = []
+        new_states: dict[str, str] = {}
+        order = SensorApp._SEVERITY_ORDER
+
+        for row in rows:
+            if row.kind != "sensor" or row.value is None:
+                continue
+            severity = SensorApp._severity_for(row.sensor_type, row.value)
+            if severity in ("warn", "critical"):
+                new_states[row.path] = severity
+                prev = existing_states.get(row.path, "normal")
+                if order[severity] > order[prev]:
+                    value_text = SensorApp._format_value(row.value, row.unit)
+                    new_alerts.append((row.path, row.name, severity, value_text))
+
+        return new_alerts, new_states
 
     @staticmethod
     def _value_text(row: SensorRow) -> str:

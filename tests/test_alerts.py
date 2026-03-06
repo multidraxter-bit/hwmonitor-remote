@@ -3,7 +3,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "fedora"))
 
-from hwmonitor_remote import SensorApp, SensorRow
+from hwmonitor_remote import AlertEvent, SensorApp, SensorRow
 
 
 def _row(path: str, sensor_type: str, value: float) -> SensorRow:
@@ -96,3 +96,119 @@ def test_delta_text_falling():
 
 def test_delta_text_steady_with_short_history():
     assert SensorApp._delta_text([70.0], "C") == "steady"
+
+
+def test_threshold_text_temperature_below_warning():
+    app = SensorApp.__new__(SensorApp)
+    app.threshold_overrides = {}
+    text = app._threshold_text("CPU/Temp", "Temperature", 60, "C")
+    assert "15 C below warning" in text
+    assert "critical at 90 C" in text
+
+
+def test_threshold_text_temperature_warning_active():
+    app = SensorApp.__new__(SensorApp)
+    app.threshold_overrides = {}
+    text = app._threshold_text("CPU/Temp", "Temperature", 84, "C")
+    assert "warning active" in text
+    assert "6 C to critical" in text
+
+
+def test_threshold_text_temperature_critical():
+    app = SensorApp.__new__(SensorApp)
+    app.threshold_overrides = {}
+    text = app._threshold_text("CPU/Temp", "Temperature", 95, "C")
+    assert "critical by +5 C" in text
+
+
+def test_effective_severity_uses_override_thresholds():
+    app = SensorApp.__new__(SensorApp)
+    app.threshold_overrides = {"CPU/Temp": {"warn": 70.0, "critical": 80.0}}
+    assert app._effective_severity("CPU/Temp", "Temperature", 75.0) == "warn"
+    assert app._effective_severity("CPU/Temp", "Temperature", 82.0) == "critical"
+
+
+def test_top_mover_rows_orders_by_delta():
+    app = SensorApp.__new__(SensorApp)
+    app.history = {
+        "CPU/Temp": [70.0, 76.0],
+        "GPU/Temp": [60.0, 62.0],
+    }
+    app.favorite_paths = {"CPU/Temp"}
+    rows = [
+        SensorRow(kind="sensor", name="CPU Temp", path="CPU/Temp", indent=0, sensor_type="Temperature", unit="C", value=76.0, severity="warn"),
+        SensorRow(kind="sensor", name="GPU Temp", path="GPU/Temp", indent=0, sensor_type="Temperature", unit="C", value=62.0, severity="cool"),
+    ]
+
+    movers = app._top_mover_rows(rows)
+
+    assert len(movers) == 2
+    assert movers[0].path == "CPU/Temp"
+    assert movers[0].detail == "+6 C"
+
+
+def test_active_alert_rows_only_include_warn_and_critical():
+    app = SensorApp.__new__(SensorApp)
+    app.muted_paths = set()
+    rows = [
+        SensorRow(kind="sensor", name="CPU Temp", path="CPU/Temp", indent=0, sensor_type="Temperature", unit="C", value=92.0, severity="critical"),
+        SensorRow(kind="sensor", name="GPU Temp", path="GPU/Temp", indent=0, sensor_type="Temperature", unit="C", value=80.0, severity="warn"),
+        SensorRow(kind="sensor", name="CPU Load", path="CPU/Load", indent=0, sensor_type="Load", unit="%", value=30.0, severity="cool"),
+    ]
+
+    alerts = app._active_alert_rows_from_rows(rows)
+
+    assert [row.path for row in alerts] == ["CPU/Temp", "GPU/Temp"]
+
+
+def test_record_alert_events_adds_new_entries():
+    app = SensorApp.__new__(SensorApp)
+    app.alert_history = []
+    app._persist_config = lambda: None
+
+    app._record_alert_events([
+        ("CPU/Temp", "CPU Temp", "critical", "95 C"),
+    ])
+
+    assert len(app.alert_history) == 1
+    assert app.alert_history[0].path == "CPU/Temp"
+    assert app.alert_history[0].status == "new"
+
+
+def test_record_alert_events_marks_repeat_and_skips_identical_value():
+    app = SensorApp.__new__(SensorApp)
+    app._persist_config = lambda: None
+    app.alert_history = [
+        AlertEvent(timestamp="10:00:00", path="CPU/Temp", name="CPU Temp", severity="critical", value_text="95 C", status="new")
+    ]
+
+    app._record_alert_events([
+        ("CPU/Temp", "CPU Temp", "critical", "95 C"),
+        ("CPU/Temp", "CPU Temp", "critical", "96 C"),
+    ])
+
+    assert len(app.alert_history) == 2
+    assert app.alert_history[0].value_text == "96 C"
+    assert app.alert_history[0].status == "repeat"
+
+
+def test_history_plot_points_span_canvas():
+    points = SensorApp._history_plot_points([10.0, 20.0, 15.0], 100, 50, 10)
+
+    assert len(points) == 3
+    assert points[0][0] == 10
+    assert round(points[-1][0], 5) == 90
+    assert all(10 <= y <= 40 for _, y in points)
+
+
+def test_wallboard_texts_for_problem_focus():
+    title, detail = SensorApp._wallboard_texts(2, 5, "Machine/CPU/Temp", 120)
+    assert "Critical 2" in title
+    assert "Focus Temp" in title
+    assert "Current path: Machine/CPU/Temp" in detail
+
+
+def test_wallboard_texts_for_stable_system():
+    title, detail = SensorApp._wallboard_texts(0, 0, "", 120)
+    assert title == "System Stable"
+    assert "Monitoring 120 sensors" in detail

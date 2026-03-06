@@ -1,0 +1,44 @@
+{
+  "hwinfo": {
+    "enabled": false,
+    "mode": "shared_memory",
+    "sharedMemory": true,
+    "pythonPath": "python",
+    "logPath": "C:\\Users\\loofi\\hwremote-monitor\\telemetry\\HWiNFO*.csv",
+    "delimiter": ";",
+    "excludeColumns": [
+      "Date",
+      "Time"
+    ]
+  },
+  "presentmon": {
+    "enabled": false,
+    "csvPath": "C:\\Telemetry\\presentmon.csv",
+    "delimiter": ",",
+    "includeColumns": [
+      "ApplicationFPS",
+      "CPUFrameTime",
+      "GPUFrameTime",
+      "FrameTime",
+      "GPUBusy",
+      "CPUBusy"
+    ],
+    "renameColumns": {
+      "ApplicationFPS": "Application FPS",
+      "CPUFrameTime": "CPU Frame Time",
+      "GPUFrameTime": "GPU Frame Time",
+      "FrameTime": "Frame Time",
+      "GPUBusy": "GPU Busy",
+      "CPUBusy": "CPU Busy"
+    }
+  },
+  "msiAfterburner": {
+    "enabled": false,
+    "logPath": "C:\\Users\\loofi\\hwremote-monitor\\telemetry\\MSIAfterburner.csv",
+    "delimiter": ",",
+    "excludeColumns": [
+      "Date",
+      "Time"
+    ]
+  }
+}

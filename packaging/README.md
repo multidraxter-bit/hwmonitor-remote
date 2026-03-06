@@ -2,6 +2,11 @@
 
 This repo ships a standalone Fedora desktop app and includes local, CI, and COPR-friendly packaging.
 
+## Documentation
+
+- End-user guide with screenshots: `docs/user-guide.md`
+- Main project overview: `README.md`
+
 ## Local RPM build
 
 Build:
@@ -9,6 +14,12 @@ Build:
 ```bash
 ./scripts/build-rpm.sh
 ```
+
+This creates:
+
+- a source tarball in `~/rpmbuild/SOURCES/`
+- an SRPM in `~/rpmbuild/SRPMS/`
+- a noarch RPM in `~/rpmbuild/RPMS/noarch/`
 
 Install newest local RPM:
 

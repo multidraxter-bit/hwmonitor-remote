@@ -1,5 +1,15 @@
 $ErrorActionPreference = "Stop"
 
+if ($PSVersionTable.PSEdition -eq "Core") {
+    $powershellExe = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (-not (Test-Path -LiteralPath $powershellExe)) {
+        throw "Windows PowerShell not found at $powershellExe"
+    }
+
+    & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @args
+    exit $LASTEXITCODE
+}
+
 $script:Port = 8086
 $script:Prefix = "http://+:$($script:Port)/"
 $script:RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -7,144 +17,20 @@ $script:PackageDir = "C:\Users\loofi\AppData\Local\Microsoft\WinGet\Packages\Lib
 $script:LibPath = Join-Path $script:PackageDir "LibreHardwareMonitorLib.dll"
 $script:LogPath = Join-Path $script:RootDir "lhm-exporter.log"
 
+. (Join-Path $PSScriptRoot "telemetry-common.ps1")
+
 function Write-Log {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $script:LogPath -Value "[$timestamp] $Message"
 }
 
-function Get-DisplayName {
-    param([string]$SensorType)
-
-    switch ($SensorType) {
-        "Clock" { "Clocks" }
-        "Control" { "Controls" }
-        "Current" { "Currents" }
-        "Data" { "Data" }
-        "Factor" { "Factors" }
-        "Fan" { "Fans" }
-        "Flow" { "Flows" }
-        "Frequency" { "Frequencies" }
-        "Humidity" { "Humidity" }
-        "Level" { "Levels" }
-        "LiquidLevel" { "Liquid Levels" }
-        "Load" { "Loads" }
-        "Power" { "Powers" }
-        "Pressure" { "Pressures" }
-        "SmallData" { "Small Data" }
-        "Temperature" { "Temperatures" }
-        "Throughput" { "Throughput" }
-        "TimeSpan" { "Time" }
-        "Voltage" { "Voltages" }
-        default { "$SensorType" }
-    }
-}
-
-function Get-Unit {
-    param([string]$SensorType)
-
-    switch ($SensorType) {
-        "Clock" { "MHz" }
-        "Control" { "%" }
-        "Current" { "A" }
-        "Data" { "GB" }
-        "Fan" { "RPM" }
-        "Flow" { "L/h" }
-        "Frequency" { "Hz" }
-        "Humidity" { "%" }
-        "Level" { "%" }
-        "LiquidLevel" { "%" }
-        "Load" { "%" }
-        "Power" { "W" }
-        "Pressure" { "bar" }
-        "SmallData" { "MB" }
-        "Temperature" { "C" }
-        "Throughput" { "B/s" }
-        "TimeSpan" { "s" }
-        "Voltage" { "V" }
-        default { "" }
-    }
-}
-
-function Format-Number {
-    param([Nullable[float]]$Value)
-
-    if ($null -eq $Value) {
-        return $null
-    }
-
-    return [Math]::Round([double]$Value, 2)
-}
-
-function Update-HardwareNode {
-    param([object]$Hardware)
-
-    $Hardware.Update()
-    foreach ($subHardware in $Hardware.SubHardware) {
-        Update-HardwareNode $subHardware
-    }
-}
-
-function Convert-Sensor {
-    param([object]$Sensor)
-
-    return [ordered]@{
-        kind = "sensor"
-        name = $Sensor.Name
-        type = [string]$Sensor.SensorType
-        id = [string]$Sensor.Identifier
-        value = Format-Number $Sensor.Value
-        min = Format-Number $Sensor.Min
-        max = Format-Number $Sensor.Max
-        unit = Get-Unit ([string]$Sensor.SensorType)
-    }
-}
-
-function Convert-SensorGroup {
-    param(
-        [string]$Name,
-        [object[]]$Sensors
-    )
-
-    return [ordered]@{
-        kind = "group"
-        name = $Name
-        children = @($Sensors | Sort-Object Name | ForEach-Object { Convert-Sensor $_ })
-    }
-}
-
-function Convert-Hardware {
-    param([object]$Hardware)
-
-    Update-HardwareNode $Hardware
-
-    $groups = @()
-    $groupedSensors = $Hardware.Sensors | Group-Object { [string]$_.SensorType } | Sort-Object Name
-    foreach ($group in $groupedSensors) {
-        $groups += Convert-SensorGroup (Get-DisplayName $group.Name) $group.Group
-    }
-
-    $subNodes = @($Hardware.SubHardware | Sort-Object Name | ForEach-Object { Convert-Hardware $_ })
-    $children = @($groups + $subNodes)
-
-    return [ordered]@{
-        kind = "hardware"
-        name = $Hardware.Name
-        type = [string]$Hardware.HardwareType
-        id = [string]$Hardware.Identifier
-        children = $children
-    }
-}
-
-function Get-Snapshot {
-    $hardwareNodes = @($script:Computer.Hardware | Sort-Object Name | ForEach-Object { Convert-Hardware $_ })
-
-    return [ordered]@{
-        kind = "machine"
-        name = $env:COMPUTERNAME
-        source = "LibreHardwareMonitorLib"
-        generatedAt = (Get-Date).ToString("o")
-        children = $hardwareNodes
+function Test-HealthyExporter {
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$($script:Port)/health" -TimeoutSec 2
+        return $response.StatusCode -eq 200 -and $response.Content -match '"status"\s*:\s*"ok"'
+    } catch {
+        return $false
     }
 }
 
@@ -168,7 +54,16 @@ $script:Computer.Open()
 
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add($script:Prefix)
-$listener.Start()
+
+try {
+    $listener.Start()
+} catch {
+    if (Test-HealthyExporter) {
+        Write-Log "Exporter already running on $($script:Prefix); exiting duplicate launch"
+        exit 0
+    }
+    throw
+}
 
 Write-Log "Exporter started on $($script:Prefix)"
 
@@ -191,7 +86,7 @@ try {
                     $payload = '{"status":"ok"}'
                 }
                 "/data.json" {
-                    $payload = Get-Snapshot | ConvertTo-Json -Depth 16
+                    $payload = Get-MergedSnapshot -Computer $script:Computer | ConvertTo-Json -Depth 16
                 }
                 default {
                     $response.StatusCode = 404

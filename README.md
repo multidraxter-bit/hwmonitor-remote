@@ -1,13 +1,13 @@
 # HWMonitor Remote
 
-Lightweight remote monitor with an `HWMonitor`-style tree layout on Fedora.
+Standalone desktop app for Fedora that monitors a Windows machine's hardware sensors over SSH or HTTP.
 
 ## Default mode: SSH snapshots
 
 This is the default and most reliable path for your setup.
 
 - `windows/lhm-snapshot.ps1`: grabs a full sensor snapshot once over SSH
-- `fedora/hwmonitor_remote.py`: polls that snapshot and renders it locally
+- `fedora/hwmonitor_remote.py`: standalone desktop app
 
 Default target:
 
@@ -15,10 +15,16 @@ Default target:
 ssh://loofi@192.168.1.3
 ```
 
-Launch:
+Launch the app:
 
 ```bash
 hwremote-monitor
+```
+
+The launcher points to:
+
+```bash
+/home/loofi/hwremote-monitor/fedora/hwmonitor_remote.py
 ```
 
 ## Optional mode: HTTP exporter
@@ -35,18 +41,4 @@ Expected endpoints:
 
 ## Plasma widget
 
-Native Plasma applet package:
-
-- `plasmoid/package`
-
-Installed applet id:
-
-```text
-com.github.loofi.hwremotemonitor
-```
-
-Install manually:
-
-```bash
-kpackagetool6 --type Plasma/Applet --install /home/loofi/hwremote-monitor/plasmoid/package
-```
+The repo still contains the optional Plasma widget package in `plasmoid/package`, but the desktop app is the primary target now.

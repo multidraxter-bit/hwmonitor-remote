@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-0.2.0}"
+VERSION="${1:-0.3.0}"
 TOPDIR="${RPM_TOPDIR:-$HOME/rpmbuild}"
 NAME="hwmonitor-remote"
 TARBALL="$TOPDIR/SOURCES/${NAME}-${VERSION}.tar.gz"

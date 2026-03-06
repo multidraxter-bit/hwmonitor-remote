@@ -1,5 +1,5 @@
 Name:           hwmonitor-remote
-Version:        0.2.0
+Version:        0.3.0
 Release:        1%{?dist}
 Summary:        Standalone desktop app for remote Windows hardware monitoring
 
@@ -54,5 +54,8 @@ chmod 0755 %{buildroot}%{_bindir}/hwremote-monitor
 %{_datadir}/%{name}/windows/install-exporter.ps1
 
 %changelog
+* Fri Mar 06 2026 Loofi <loofi@loofi.com> - 0.3.0-1
+- Improve standalone desktop app UI, sensor pinning, filters, trends, and keyboard actions
+
 * Fri Mar 06 2026 Loofi <loofi@loofi.com> - 0.2.0-1
 - Package standalone desktop app as an RPM

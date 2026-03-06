@@ -41,12 +41,31 @@ class SensorApp:
         self.auto_refresh_var = tk.BooleanVar(value=True)
         self.search_var = tk.StringVar()
         self.category_var = tk.StringVar(value="all")
+        self.hardware_var = tk.StringVar(value="all")
         self.refresh_job = None
         self.current_payload: dict = {}
         self.summary_value_vars: dict[str, tk.StringVar] = {}
         self.summary_detail_vars: dict[str, tk.StringVar] = {}
+        self.dashboard_value_vars: dict[str, tk.StringVar] = {}
+        self.dashboard_detail_vars: dict[str, tk.StringVar] = {}
         self.favorite_rows: list[tuple[str, str, str]] = []
         self.cpu_core_rows: list[tuple[str, str]] = []
+        self.favorite_paths: set[str] = set()
+        self.favorite_item_paths: dict[str, str] = {}
+        self.history: dict[str, list[float]] = {}
+        self.item_paths: dict[str, str] = {}
+        self.item_nodes: dict[str, dict] = {}
+        self.open_paths: set[str] = set()
+        self.selected_path: str | None = None
+        self.visible_sensor_count = 0
+        self.visible_group_count = 0
+        self.detail_name_var = tk.StringVar(value="No sensor selected")
+        self.detail_meta_var = tk.StringVar(value="")
+        self.detail_value_var = tk.StringVar(value="")
+        self.detail_range_var = tk.StringVar(value="")
+        self.detail_history_var = tk.StringVar(value="")
+        self.hint_var = tk.StringVar(value="F5 refresh  |  Ctrl+F search  |  Double-click sensor to pin")
+        self._load_saved_state()
 
         self._build_ui()
         self.root.after(250, self.refresh)
@@ -107,8 +126,8 @@ class SensorApp:
         controls = ttk.Frame(header, style="Panel.TFrame")
         controls.pack(side="right")
         ttk.Label(controls, text="Source", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
-        source_entry = ttk.Entry(controls, textvariable=self.url_var, width=38)
-        source_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
+        self.source_entry = ttk.Entry(controls, textvariable=self.url_var, width=38)
+        self.source_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
         ttk.Button(controls, text="Refresh", command=self.refresh).grid(row=0, column=2, padx=(0, 8))
         ttk.Checkbutton(controls, text="Auto", variable=self.auto_refresh_var, command=self._toggle_auto).grid(row=0, column=3, padx=(0, 8))
         ttk.Label(controls, text="Interval", style="Muted.TLabel").grid(row=0, column=4, sticky="e")
@@ -122,7 +141,8 @@ class SensorApp:
         overview = ttk.Frame(body, style="Panel.TFrame", padding=10)
         explorer = ttk.Frame(body, style="Panel.TFrame", padding=10)
         body.add(overview, weight=1)
-        body.add(explorer, weight=3)
+        body.add(explorer, weight=4)
+        self.body = body
 
         summary_grid = ttk.Frame(overview, style="Panel.TFrame")
         summary_grid.pack(fill="x")
@@ -145,17 +165,19 @@ class SensorApp:
         fav_frame = ttk.Frame(overview, style="Card.TFrame", padding=8)
         fav_frame.pack(fill="x")
         self.favorites_tree = ttk.Treeview(fav_frame, columns=("sensor", "value"), show="headings", height=8)
-        self.favorites_tree.heading("sensor", text="Sensor")
-        self.favorites_tree.heading("value", text="Value")
+        self.favorites_tree.heading("sensor", text="Sensor", command=lambda: self._sort_table(self.favorites_tree, "sensor", numeric=False))
+        self.favorites_tree.heading("value", text="Value", command=lambda: self._sort_table(self.favorites_tree, "value", numeric=True))
         self.favorites_tree.column("sensor", width=175, anchor="w")
         self.favorites_tree.column("value", width=85, anchor="e")
         self.favorites_tree.pack(fill="x")
+        self.favorites_tree.bind("<Double-1>", self._on_favorite_activate)
+        self.favorites_tree.bind("<Button-3>", self._show_favorite_context_menu)
 
         ttk.Label(overview, text="Hottest CPU Cores", style="Section.TLabel").pack(anchor="w", pady=(10, 4))
         cores_frame = ttk.Frame(overview, style="Card.TFrame", padding=8)
         cores_frame.pack(fill="both", expand=True)
         self.cores_tree = ttk.Treeview(cores_frame, columns=("temp",), show="headings", height=12)
-        self.cores_tree.heading("temp", text="Temp")
+        self.cores_tree.heading("temp", text="Temp", command=lambda: self._sort_table(self.cores_tree, "temp", numeric=True))
         self.cores_tree.column("#0", width=0, stretch=False)
         self.cores_tree.column("temp", width=100, anchor="e")
         self.cores_tree.pack(fill="both", expand=True)
@@ -163,14 +185,39 @@ class SensorApp:
         filter_bar = ttk.Frame(explorer, style="Panel.TFrame")
         filter_bar.pack(fill="x")
         ttk.Label(filter_bar, text="Filter", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
-        search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=34)
-        search_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
-        search_entry.bind("<KeyRelease>", lambda _event: self._rebuild_tree())
+        self.search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=34)
+        self.search_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
+        self.search_entry.bind("<KeyRelease>", lambda _event: self._rebuild_tree())
         ttk.Label(filter_bar, text="Category", style="Muted.TLabel").grid(row=0, column=2, sticky="e")
         category_box = ttk.Combobox(filter_bar, width=12, state="readonly", textvariable=self.category_var, values=CATEGORY_VALUES)
         category_box.grid(row=0, column=3, padx=(6, 0))
         category_box.bind("<<ComboboxSelected>>", lambda _event: self._rebuild_tree())
+        ttk.Label(filter_bar, text="Hardware", style="Muted.TLabel").grid(row=0, column=4, sticky="e", padx=(10, 0))
+        self.hardware_box = ttk.Combobox(filter_bar, width=22, state="readonly", textvariable=self.hardware_var, values=("all",))
+        self.hardware_box.grid(row=0, column=5, padx=(6, 6))
+        self.hardware_box.bind("<<ComboboxSelected>>", lambda _event: self._rebuild_tree())
+        ttk.Button(filter_bar, text="Expand", command=lambda: self._set_all_open(True)).grid(row=0, column=6, padx=(6, 6))
+        ttk.Button(filter_bar, text="Collapse", command=lambda: self._set_all_open(False)).grid(row=0, column=7, padx=(0, 6))
+        ttk.Button(filter_bar, text="Reset", command=self._reset_filters).grid(row=0, column=8, padx=(0, 10))
+        self.count_label = ttk.Label(filter_bar, text="0 sensors", style="Muted.TLabel")
+        self.count_label.grid(row=0, column=9, sticky="e")
         filter_bar.columnconfigure(1, weight=1)
+        filter_bar.columnconfigure(9, weight=1)
+        ttk.Label(explorer, textvariable=self.hint_var, style="Muted.TLabel").pack(anchor="w", pady=(2, 8))
+
+        dashboard_bar = ttk.Frame(explorer, style="Panel.TFrame")
+        dashboard_bar.pack(fill="x", pady=(8, 8))
+        for idx, title in enumerate(("CPU Live", "GPU Live", "Storage Live")):
+            dash_card = ttk.Frame(dashboard_bar, style="Card.TFrame", padding=8)
+            dash_card.grid(row=0, column=idx, sticky="nsew", padx=(0 if idx == 0 else 8, 0))
+            dashboard_bar.columnconfigure(idx, weight=1)
+            ttk.Label(dash_card, text=title, style="CardTitle.TLabel").pack(anchor="w")
+            value_var = tk.StringVar(value="--")
+            detail_var = tk.StringVar(value="")
+            ttk.Label(dash_card, textvariable=value_var, style="CardValue.TLabel").pack(anchor="w", pady=(2, 0))
+            ttk.Label(dash_card, textvariable=detail_var, style="CardDetail.TLabel").pack(anchor="w", pady=(2, 0))
+            self.dashboard_value_vars[title] = value_var
+            self.dashboard_detail_vars[title] = detail_var
 
         favorites_bar = ttk.Frame(explorer, style="Card.TFrame", padding=6)
         favorites_bar.pack(fill="x", pady=(8, 8))
@@ -181,20 +228,24 @@ class SensorApp:
         tree_frame = ttk.Frame(explorer, style="Card.TFrame", padding=6)
         tree_frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(tree_frame, columns=("value", "min", "max"), show="tree headings", selectmode="browse")
-        self.tree.heading("#0", text="Sensor")
-        self.tree.heading("value", text="Value")
-        self.tree.heading("min", text="Min")
-        self.tree.heading("max", text="Max")
-        self.tree.column("#0", width=520, anchor="w")
-        self.tree.column("value", width=120, anchor="e")
-        self.tree.column("min", width=100, anchor="e")
-        self.tree.column("max", width=100, anchor="e")
+        self.tree.heading("#0", text="Sensor", command=lambda: self._sort_main_tree("#0", numeric=False))
+        self.tree.heading("value", text="Value", command=lambda: self._sort_main_tree("value", numeric=True))
+        self.tree.heading("min", text="Min", command=lambda: self._sort_main_tree("min", numeric=True))
+        self.tree.heading("max", text="Max", command=lambda: self._sort_main_tree("max", numeric=True))
+        self.tree.column("#0", width=620, anchor="w")
+        self.tree.column("value", width=130, anchor="e")
+        self.tree.column("min", width=110, anchor="e")
+        self.tree.column("max", width=110, anchor="e")
         self.tree.tag_configure("hardware", foreground="#d9e2ec", font=("DejaVu Sans", 10, "bold"))
         self.tree.tag_configure("group", foreground="#a9b8c7", font=("DejaVu Sans", 10, "bold"))
         self.tree.tag_configure("sensor", foreground=text)
+        self.tree.tag_configure("favorite", foreground="#7fd4ff", font=("DejaVu Sans Mono", 10, "bold"))
         self.tree.tag_configure("warn", foreground=amber)
         self.tree.tag_configure("critical", foreground=red)
         self.tree.tag_configure("cool", foreground=green)
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+        self.tree.bind("<Double-1>", self._toggle_selected_favorite)
+        self.tree.bind("<Button-3>", self._show_tree_context_menu)
         yscroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         xscroll = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
@@ -203,6 +254,40 @@ class SensorApp:
         xscroll.grid(row=1, column=0, sticky="ew")
         tree_frame.rowconfigure(0, weight=1)
         tree_frame.columnconfigure(0, weight=1)
+
+        detail_frame = ttk.Frame(explorer, style="Card.TFrame", padding=8)
+        detail_frame.pack(fill="x", pady=(8, 0))
+        ttk.Label(detail_frame, text="Selected Sensor", style="Section.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(detail_frame, textvariable=self.detail_name_var, style="Title.TLabel").grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(detail_frame, textvariable=self.detail_meta_var, style="Muted.TLabel").grid(row=2, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(detail_frame, textvariable=self.detail_value_var, style="CardValue.TLabel").grid(row=1, column=1, sticky="e", padx=(20, 0))
+        ttk.Label(detail_frame, textvariable=self.detail_range_var, style="CardDetail.TLabel").grid(row=2, column=1, sticky="e", padx=(20, 0))
+        ttk.Label(detail_frame, textvariable=self.detail_history_var, style="Muted.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        actions = ttk.Frame(detail_frame, style="Card.TFrame")
+        actions.grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Button(actions, text="Pin", command=self._toggle_selected_favorite).pack(side="left")
+        ttk.Button(actions, text="Copy Path", command=self._copy_selected_path).pack(side="left", padx=(6, 0))
+        ttk.Button(actions, text="Copy Value", command=self._copy_selected_value).pack(side="left", padx=(6, 0))
+        ttk.Button(actions, text="Focus Hardware", command=self._focus_selected_hardware).pack(side="left", padx=(6, 0))
+        detail_frame.columnconfigure(0, weight=1)
+
+        self.tree_menu = tk.Menu(self.root, tearoff=False)
+        self.tree_menu.add_command(label="Pin / Unpin Sensor", command=self._toggle_selected_favorite)
+        self.tree_menu.add_command(label="Copy Sensor Path", command=self._copy_selected_path)
+        self.tree_menu.add_command(label="Copy Sensor Value", command=self._copy_selected_value)
+        self.tree_menu.add_command(label="Filter To Hardware", command=self._focus_selected_hardware)
+        self.tree_menu.add_command(label="Search Sensor Name", command=self._search_selected_name)
+
+        self.favorite_menu = tk.Menu(self.root, tearoff=False)
+        self.favorite_menu.add_command(label="Pin / Unpin Favorite", command=self._on_favorite_activate)
+        self.favorite_menu.add_command(label="Copy Favorite Path", command=self._copy_selected_favorite_path)
+
+        self.root.bind("<F5>", lambda _event: self.refresh())
+        self.root.bind("<Control-f>", self._focus_search)
+        self.root.bind("<Control-l>", self._focus_source)
+        self.root.bind("<Control-c>", self._copy_selected_value)
+
+        self.root.after(150, self._set_initial_layout)
 
     def _toggle_auto(self) -> None:
         self._reschedule()
@@ -238,6 +323,7 @@ class SensorApp:
 
     def _set_error(self, message: str) -> None:
         self.status_var.set(message)
+        self.hint_var.set("Last refresh failed  |  Check source host, SSH, and Windows sensor script")
         self._reschedule()
 
     @staticmethod
@@ -256,34 +342,95 @@ class SensorApp:
 
     def _apply_data(self, payload: dict, elapsed_ms: int) -> None:
         self.current_payload = payload
+        self._update_hardware_choices(payload)
         self._update_overview(payload)
         self._rebuild_tree()
         generated = payload.get("generatedAt", "unknown time")
         self.status_var.set(f"Updated in {elapsed_ms} ms, snapshot {generated}")
+        self.hint_var.set("F5 refresh  |  Ctrl+F search  |  Double-click sensor to pin")
         self._reschedule()
+
+    def _set_initial_layout(self) -> None:
+        try:
+            total_width = max(self.root.winfo_width(), 1540)
+            self.body.sashpos(0, int(total_width * 0.30))
+        except tk.TclError:
+            pass
 
     def _update_overview(self, payload: dict) -> None:
         rows = self._flatten_rows(payload)
+        self._update_history(rows)
+        cpu_temp = self._best_row(
+            rows,
+            hardware_hints=("intel", "amd", "cpu", "ryzen"),
+            sensor_hints=("package", "cpu package", "core max"),
+            sensor_type="Temperature",
+            exclude_hints=("distance to tjmax", "nvidia", "radeon", "arc", "gpu"),
+        )
+        cpu_load = self._best_row(
+            rows,
+            hardware_hints=("intel", "amd", "cpu", "ryzen"),
+            sensor_hints=("cpu total", "total"),
+            sensor_type="Load",
+            exclude_hints=("nvidia", "radeon", "arc", "gpu"),
+        )
+        gpu_temp = self._best_row(
+            rows,
+            hardware_hints=("nvidia", "radeon", "arc", "gpu"),
+            sensor_hints=("hot spot", "hotspot", "gpu core", "core"),
+            sensor_type="Temperature",
+        )
+        cooling = self._best_row(
+            rows,
+            hardware_hints=("asus", "motherboard", "board", "cpu"),
+            sensor_hints=("cpu fan", "aio", "pump", "cha fan", "fan"),
+            sensor_type="Fan",
+            allow_zero=False,
+        )
+        drive_temp = self._best_row(
+            rows,
+            hardware_hints=("ssd", "nvme", "samsung", "wd", "kingston", "crucial"),
+            sensor_hints=("composite temperature", "temperature #1", "assembly", "temperature"),
+            sensor_type="Temperature",
+            exclude_hints=("critical temperature", "warning temperature"),
+        )
         summaries = {
-            "CPU": self._best_row(rows, hardware_hints=("intel", "amd", "cpu", "ryzen", "core"), sensor_hints=("package", "cpu package"), sensor_type="Temperature"),
-            "GPU": self._best_row(rows, hardware_hints=("nvidia", "radeon", "arc", "gpu"), sensor_hints=("hot spot", "gpu core", "core"), sensor_type="Temperature"),
-            "Cooling": self._best_row(rows, hardware_hints=("asus", "motherboard", "board"), sensor_hints=("fan", "cpu"), sensor_type="Fan"),
-            "Drive": self._best_row(rows, hardware_hints=("ssd", "nvme", "samsung", "wd", "kingston", "crucial"), sensor_hints=("temperature", "assembly"), sensor_type="Temperature"),
+            "CPU": cpu_temp or cpu_load,
+            "GPU": gpu_temp,
+            "Cooling": cooling,
+            "Drive": drive_temp,
         }
         for name, row in summaries.items():
             if row:
                 self.summary_value_vars[name].set(self._value_text(row))
-                self.summary_detail_vars[name].set(row.name)
+                self.summary_detail_vars[name].set(f"{row.name}  {self._history_text(row.path)}")
             else:
                 self.summary_value_vars[name].set("--")
                 self.summary_detail_vars[name].set("No sensor")
+
+        dashboard = {
+            "CPU Live": self._compose_dashboard_text(cpu_temp or cpu_load, cpu_load),
+            "GPU Live": self._compose_dashboard_text(gpu_temp, self._best_row(rows, ("nvidia", "radeon", "arc", "gpu"), ("gpu package", "board power", "gpu power", "package"), "Power", allow_zero=False)),
+            "Storage Live": self._compose_dashboard_text(drive_temp, self._best_row(rows, ("ssd", "nvme", "samsung", "wd", "kingston", "crucial"), ("total activity", "read activity", "write activity"), "Load", allow_zero=False)),
+        }
+        for name, (value_text, detail_text) in dashboard.items():
+            self.dashboard_value_vars[name].set(value_text)
+            self.dashboard_detail_vars[name].set(detail_text)
 
         favorites = self._favorite_rows(rows)
         self.favorite_rows = favorites
         self.favorite_label.configure(text="  |  ".join(f"{label}: {value}" for label, _sensor, value in favorites) or "No favorite sensors found")
         self.favorites_tree.delete(*self.favorites_tree.get_children())
+        self.favorite_item_paths.clear()
         for label, sensor, value in favorites:
-            self.favorites_tree.insert("", "end", values=(f"{label}: {sensor}", value))
+            item_id = self.favorites_tree.insert("", "end", values=(f"{label}: {sensor}", value))
+            path = None
+            if label.startswith("* "):
+                path = next((row.path for row in rows if row.kind == "sensor" and row.name == label[2:]), None)
+            else:
+                path = self._favorite_path_for_label(rows, label)
+            if path:
+                self.favorite_item_paths[item_id] = path
 
         cores = self._cpu_core_rows(rows)
         self.cpu_core_rows = cores
@@ -297,53 +444,94 @@ class SensorApp:
             self.cores_tree.insert("", "end", values=(core_name, temp))
 
     def _rebuild_tree(self) -> None:
+        current_selection = self.tree.selection()
+        if current_selection:
+            self.selected_path = self.item_paths.get(current_selection[0])
+        self._capture_open_paths()
         self.tree.delete(*self.tree.get_children())
+        self.item_paths.clear()
+        self.item_nodes.clear()
+        self.visible_sensor_count = 0
+        self.visible_group_count = 0
         if not self.current_payload:
             return
         search = self.search_var.get().strip().lower()
         category = self.category_var.get() or "all"
-        self._insert_tree_node("", self.current_payload, search, category, 0)
-        for item in self.tree.get_children():
-            self.tree.item(item, open=True)
+        self._insert_tree_node("", self.current_payload, search, category, 0, "")
+        self.count_label.configure(text=f"{self.visible_sensor_count} sensors, {self.visible_group_count} groups")
+        self._restore_selection()
+        self._persist_config()
 
-    def _insert_tree_node(self, parent: str, node: dict, search: str, category: str, depth: int) -> bool:
+    def _capture_open_paths(self) -> None:
+        paths: set[str] = set()
+
+        def walk(item_id: str) -> None:
+            path = self.item_paths.get(item_id)
+            if path and self.tree.item(item_id, "open"):
+                paths.add(path)
+            for child in self.tree.get_children(item_id):
+                walk(child)
+
+        for top in self.tree.get_children():
+            walk(top)
+        self.open_paths = paths
+
+    def _node_visible(self, node: dict, search: str, category: str, path: str = "") -> bool:
         kind = node.get("kind", "sensor")
         name = node.get("name", "Unknown")
         node_type = node.get("type", "")
-        path_blob = f"{name} {node_type}".lower()
+        current_path = f"{path}/{name}".strip("/")
+        path_blob = f"{current_path} {node_type}".lower()
+        hardware_filter = self.hardware_var.get()
 
         matches_search = not search or search in path_blob
         matches_category = True
         if kind == "sensor" and category != "all":
             matches_category = self._category_for_type(node_type) == category
+        matches_hardware = True
+        if hardware_filter != "all" and kind != "machine":
+            matches_hardware = hardware_filter.lower() in path_blob
+        if kind == "machine":
+            return any(self._node_visible(child, search, category, current_path) for child in node.get("children", []))
+        if matches_search and matches_category and matches_hardware:
+            return True
+        return any(self._node_visible(child, search, category, current_path) for child in node.get("children", []))
 
-        inserted_children = []
-        for child in node.get("children", []):
-            child_visible = self._insert_tree_node(parent="__probe__", node=child, search=search, category=category, depth=depth + 1)
-            inserted_children.append((child, child_visible))
+    def _should_open_by_default(self, node: dict, path: str, depth: int) -> bool:
+        if path in self.open_paths:
+            return True
+        kind = node.get("kind", "sensor")
+        name = node.get("name", "")
+        if kind == "hardware":
+            return True
+        if kind == "group" and name in {"Temperatures", "Loads", "Fans", "Powers"}:
+            return True
+        return depth <= 1
 
-        visible = kind != "machine" and ((matches_search and matches_category) or any(flag for _, flag in inserted_children))
+    def _insert_tree_node(self, parent: str, node: dict, search: str, category: str, depth: int, path: str) -> bool:
+        if not self._node_visible(node, search, category, path):
+            return False
+
+        kind = node.get("kind", "sensor")
+        name = node.get("name", "Unknown")
+        current_path = f"{path}/{name}".strip("/")
 
         if kind == "machine":
-            for child, child_visible in inserted_children:
-                if child_visible:
-                    self._insert_tree_node(parent, child, search="", category="all", depth=0)
+            for child in node.get("children", []):
+                self._insert_tree_node(parent, child, search, category, 0, current_path)
             return True
-
-        if parent == "__probe__":
-            return visible
-
-        if not visible:
-            return False
 
         tags = [kind.lower()]
         severity = self._severity(node)
         if severity in ("warn", "critical", "cool"):
             tags.append(severity)
+        if kind == "sensor" and current_path in self.favorite_paths:
+            tags.append("favorite")
 
-        label = name if kind == "sensor" else f"{name}"
+        label = name
         values = ("", "", "")
         if kind == "sensor":
+            label = f"* {name}" if current_path in self.favorite_paths else name
             values = (
                 self._format_value(node.get("value"), node.get("unit")),
                 self._format_value(node.get("min"), node.get("unit")),
@@ -351,10 +539,321 @@ class SensorApp:
             )
 
         item = self.tree.insert(parent, "end", text=("   " * depth) + label, values=values, tags=tuple(tags))
-        for child, child_visible in inserted_children:
-            if child_visible:
-                self._insert_tree_node(item, child, search="", category="all", depth=depth + 1)
+        self.item_paths[item] = current_path
+        self.item_nodes[item] = node
+        if kind == "sensor":
+            self.visible_sensor_count += 1
+        else:
+            self.visible_group_count += 1
+        self.tree.item(item, open=self._should_open_by_default(node, current_path, depth))
+        for child in node.get("children", []):
+            self._insert_tree_node(item, child, search, category, depth + 1, current_path)
         return True
+
+    def _set_all_open(self, open_state: bool) -> None:
+        def walk(item_id: str) -> None:
+            self.tree.item(item_id, open=open_state)
+            for child in self.tree.get_children(item_id):
+                walk(child)
+
+        for top in self.tree.get_children():
+            walk(top)
+        self._capture_open_paths()
+
+    def _reset_filters(self) -> None:
+        self.search_var.set("")
+        self.category_var.set("all")
+        self.hardware_var.set("all")
+        self._rebuild_tree()
+
+    def _sort_table(self, tree: ttk.Treeview, column: str, numeric: bool = False) -> None:
+        descending = getattr(tree, "_descending", False)
+        last_column = getattr(tree, "_sort_column", None)
+        if last_column != column:
+            descending = False
+
+        def key_for(item_id: str):
+            value = tree.set(item_id, column)
+            if numeric:
+                token = "".join(ch for ch in value if ch.isdigit() or ch in ".-")
+                try:
+                    return float(token)
+                except ValueError:
+                    return float("-inf")
+            return value.lower()
+
+        items = list(tree.get_children(""))
+        items.sort(key=key_for, reverse=descending)
+        for index, item_id in enumerate(items):
+            tree.move(item_id, "", index)
+
+        tree._sort_column = column
+        tree._descending = not descending
+
+    def _sort_main_tree(self, column: str, numeric: bool = False) -> None:
+        descending = getattr(self.tree, "_descending", False)
+        last_column = getattr(self.tree, "_sort_column", None)
+        if last_column != column:
+            descending = False
+
+        def sort_children(parent: str) -> None:
+            items = list(self.tree.get_children(parent))
+            items.sort(key=lambda item_id: self._main_tree_sort_key(item_id, column, numeric), reverse=descending)
+            for index, item_id in enumerate(items):
+                self.tree.move(item_id, parent, index)
+                sort_children(item_id)
+
+        sort_children("")
+        self.tree._sort_column = column
+        self.tree._descending = not descending
+
+    def _main_tree_sort_key(self, item_id: str, column: str, numeric: bool):
+        node = self.item_nodes.get(item_id, {})
+        kind_rank = {"hardware": 0, "group": 1, "sensor": 2}.get(node.get("kind", "sensor"), 3)
+        if column == "#0":
+            return (kind_rank, self.tree.item(item_id, "text").lower())
+        value = self.tree.set(item_id, column)
+        if numeric:
+            token = "".join(ch for ch in value if ch.isdigit() or ch in ".-")
+            try:
+                parsed = float(token)
+            except ValueError:
+                parsed = float("-inf")
+            return (kind_rank, parsed)
+        return (kind_rank, value.lower())
+
+    def _restore_selection(self) -> None:
+        if not self.selected_path:
+            return
+        for item_id, path in self.item_paths.items():
+            if path == self.selected_path:
+                self.tree.selection_set(item_id)
+                self.tree.focus(item_id)
+                self.tree.see(item_id)
+                self._on_tree_select()
+                return
+
+    def _show_tree_context_menu(self, event) -> None:
+        item_id = self.tree.identify_row(event.y)
+        if not item_id:
+            return
+        self.tree.selection_set(item_id)
+        self.tree.focus(item_id)
+        self._on_tree_select()
+        self.tree_menu.tk_popup(event.x_root, event.y_root)
+
+    def _show_favorite_context_menu(self, event) -> None:
+        item_id = self.favorites_tree.identify_row(event.y)
+        if not item_id:
+            return
+        self.favorites_tree.selection_set(item_id)
+        self.favorite_menu.tk_popup(event.x_root, event.y_root)
+
+    def _copy_text(self, value: str) -> None:
+        if not value:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(value)
+        self.status_var.set(f"Copied: {value}")
+
+    def _copy_selected_path(self, _event=None) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            return
+        self._copy_text(self.item_paths.get(selection[0], ""))
+
+    def _copy_selected_value(self, _event=None) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            return
+        node = self.item_nodes.get(selection[0], {})
+        if node.get("kind") == "sensor":
+            self._copy_text(self._format_value(node.get("value"), node.get("unit", "")))
+
+    def _copy_selected_favorite_path(self) -> None:
+        selection = self.favorites_tree.selection()
+        if not selection:
+            return
+        self._copy_text(self.favorite_item_paths.get(selection[0], ""))
+
+    def _focus_selected_hardware(self) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            return
+        path = self.item_paths.get(selection[0], "")
+        parts = path.split("/")
+        if len(parts) >= 2:
+            self.hardware_var.set(parts[1])
+            self._rebuild_tree()
+
+    def _search_selected_name(self) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            return
+        node = self.item_nodes.get(selection[0], {})
+        name = node.get("name", "")
+        if name:
+            self.search_var.set(name)
+            self._rebuild_tree()
+
+    def _focus_search(self, _event=None) -> str:
+        self.search_entry.focus_set()
+        self.search_entry.selection_range(0, "end")
+        return "break"
+
+    def _focus_source(self, _event=None) -> str:
+        self.source_entry.focus_set()
+        self.source_entry.selection_range(0, "end")
+        return "break"
+
+    def _on_tree_select(self, _event=None) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            self.detail_name_var.set("No sensor selected")
+            self.detail_meta_var.set("")
+            self.detail_value_var.set("")
+            self.detail_range_var.set("")
+            self.detail_history_var.set("")
+            return
+
+        item_id = selection[0]
+        node = self.item_nodes.get(item_id, {})
+        kind = node.get("kind", "sensor")
+        name = node.get("name", "Unknown")
+        node_type = node.get("type", kind.title())
+        unit = node.get("unit", "")
+        path = self.item_paths.get(item_id, "")
+        self.selected_path = path
+
+        self.detail_name_var.set(name)
+        self.detail_meta_var.set(f"{node_type}  |  {path}")
+        if kind == "sensor":
+            value_text = self._format_value(node.get("value"), unit) or "--"
+            min_text = self._format_value(node.get("min"), unit) or "--"
+            max_text = self._format_value(node.get("max"), unit) or "--"
+            self.detail_value_var.set(value_text)
+            self.detail_range_var.set(f"Min {min_text}   Max {max_text}")
+            pin_state = "Pinned" if path in self.favorite_paths else "Double-click tree to pin"
+            self.detail_history_var.set(f"{pin_state}  |  Trend {self._history_text(path)}")
+        else:
+            child_count = len(node.get("children", []))
+            self.detail_value_var.set(f"{child_count} items")
+            self.detail_range_var.set("")
+            self.detail_history_var.set("")
+
+    def _on_favorite_activate(self, _event=None) -> None:
+        selection = self.favorites_tree.selection()
+        if not selection:
+            return
+        path = self.favorite_item_paths.get(selection[0])
+        if not path:
+            return
+        if path in self.favorite_paths:
+            self.favorite_paths.remove(path)
+        else:
+            self.favorite_paths.add(path)
+        self._persist_config()
+        self._update_overview(self.current_payload)
+
+    def _toggle_selected_favorite(self, _event=None) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            return
+        path = self.item_paths.get(selection[0])
+        node = self.item_nodes.get(selection[0], {})
+        if not path or node.get("kind") != "sensor":
+            return
+        if path in self.favorite_paths:
+            self.favorite_paths.remove(path)
+        else:
+            self.favorite_paths.add(path)
+        self._persist_config()
+        self._update_overview(self.current_payload)
+        self._on_tree_select()
+
+    def _update_hardware_choices(self, payload: dict) -> None:
+        hardware_names = ["all"]
+        for child in payload.get("children", []):
+            if child.get("kind") == "hardware":
+                hardware_names.append(child.get("name", "Unknown"))
+        self.hardware_box.configure(values=tuple(hardware_names))
+        if self.hardware_var.get() not in hardware_names:
+            self.hardware_var.set("all")
+
+    def _update_history(self, rows: list[SensorRow]) -> None:
+        current_paths: set[str] = set()
+        for row in rows:
+            if row.kind != "sensor" or row.value is None:
+                continue
+            current_paths.add(row.path)
+            samples = self.history.setdefault(row.path, [])
+            samples.append(float(row.value))
+            if len(samples) > 24:
+                del samples[:-24]
+        stale_paths = [path for path in self.history if path not in current_paths]
+        for path in stale_paths:
+            del self.history[path]
+
+    def _history_text(self, path: str) -> str:
+        samples = self.history.get(path, [])
+        if not samples:
+            return "no trend"
+        return self._sparkline(samples)
+
+    def _compose_dashboard_text(self, primary: SensorRow | None, secondary: SensorRow | None) -> tuple[str, str]:
+        if not primary and not secondary:
+            return "--", "No live sensor"
+        if primary and secondary:
+            return self._value_text(primary), f"{self._badge_for_row(primary)} {primary.name}  |  {secondary.name} {self._value_text(secondary)}"
+        row = primary or secondary
+        return self._value_text(row), f"{self._badge_for_row(row)} {row.name}  {self._history_text(row.path)}"
+
+    def _badge_for_row(self, row: SensorRow | None) -> str:
+        if not row:
+            return "[idle]"
+        return {
+            "critical": "[crit]",
+            "warn": "[warn]",
+            "cool": "[ok]",
+            "normal": "[live]",
+        }.get(row.severity, "[live]")
+
+    @staticmethod
+    def _sparkline(samples: list[float]) -> str:
+        chars = "._-~=^"
+        if len(samples) == 1:
+            return chars[-1]
+        low = min(samples)
+        high = max(samples)
+        if high <= low:
+            return chars[len(chars) // 2] * min(len(samples), 12)
+        recent = samples[-12:]
+        pieces = []
+        scale = (len(chars) - 1) / (high - low)
+        for value in recent:
+            index = int((value - low) * scale)
+            index = max(0, min(index, len(chars) - 1))
+            pieces.append(chars[index])
+        return "".join(pieces)
+
+    def _load_saved_state(self) -> None:
+        data = self._load_config_data()
+        favorites = data.get("favorite_paths", [])
+        self.favorite_paths = {path for path in favorites if isinstance(path, str)}
+        hardware = data.get("hardware_filter", "all")
+        if isinstance(hardware, str):
+            self.hardware_var.set(hardware)
+
+    @staticmethod
+    def _load_config_data() -> dict:
+        if not os.path.exists(CONFIG_PATH):
+            return {}
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
 
     def _flatten_rows(self, node: dict, depth: int = 0, path: str = "") -> list[SensorRow]:
         rows: list[SensorRow] = []
@@ -382,43 +881,131 @@ class SensorApp:
             rows.extend(self._flatten_rows(child, depth + (0 if kind == "machine" else 1), current_path))
         return rows
 
-    def _best_row(self, rows: list[SensorRow], hardware_hints: tuple[str, ...], sensor_hints: tuple[str, ...], sensor_type: str) -> SensorRow | None:
+    def _best_row(
+        self,
+        rows: list[SensorRow],
+        hardware_hints: tuple[str, ...],
+        sensor_hints: tuple[str, ...],
+        sensor_type: str,
+        *,
+        exclude_hints: tuple[str, ...] = (),
+        allow_zero: bool = True,
+    ) -> SensorRow | None:
         best = None
         best_score = -10**9
         for row in rows:
             if row.kind != "sensor" or row.value is None:
                 continue
-            score = 0
+            if not allow_zero and isinstance(row.value, (int, float)) and row.value == 0:
+                continue
+            if row.sensor_type != sensor_type:
+                continue
             haystack = f"{row.path} {row.name}".lower()
-            if row.sensor_type == sensor_type:
-                score += 50
-            else:
-                score -= 25
-            score += sum(12 for hint in hardware_hints if hint in haystack)
-            score += sum(20 for hint in sensor_hints if hint in haystack)
+            hardware_score = sum((len(hardware_hints) - index) * 8 for index, hint in enumerate(hardware_hints) if hint in haystack)
+            sensor_score = sum((len(sensor_hints) - index) * 18 for index, hint in enumerate(sensor_hints) if hint in haystack)
+            if hardware_hints and hardware_score == 0:
+                continue
+            if sensor_hints and sensor_score == 0:
+                continue
+            score = 100
+            score += hardware_score
+            score += sensor_score
+            score -= sum(35 for hint in exclude_hints if hint in haystack)
+            if row.severity == "critical" and sensor_type == "Temperature":
+                score -= 10
             if score > best_score:
                 best = row
                 best_score = score
         return best
 
-    def _favorite_rows(self, rows: list[SensorRow]) -> list[tuple[str, str, str]]:
-        picks = [
-            ("CPU Package", self._best_row(rows, ("intel", "amd", "cpu", "ryzen", "core"), ("package", "cpu package"), "Temperature")),
-            ("CPU Load", self._best_row(rows, ("intel", "amd", "cpu", "ryzen", "core"), ("total", "cpu total"), "Load")),
-            ("GPU Hotspot", self._best_row(rows, ("nvidia", "radeon", "arc", "gpu"), ("hot spot", "hotspot", "gpu core"), "Temperature")),
-            ("GPU Load", self._best_row(rows, ("nvidia", "radeon", "arc", "gpu"), ("gpu core", "d3d 3d", "core"), "Load")),
-            ("GPU Power", self._best_row(rows, ("nvidia", "radeon", "arc", "gpu"), ("board power", "gpu power"), "Power")),
-            ("CPU Fan", self._best_row(rows, ("asus", "motherboard", "board"), ("fan", "cpu"), "Fan")),
-            ("Drive Temp", self._best_row(rows, ("ssd", "nvme", "samsung", "wd", "kingston", "crucial"), ("temperature", "assembly"), "Temperature")),
+    def _favorite_candidates(self, rows: list[SensorRow]) -> list[tuple[str, SensorRow | None]]:
+        return [
+            (
+                "CPU Package",
+                self._best_row(
+                    rows,
+                    ("intel", "amd", "cpu", "ryzen"),
+                    ("package", "cpu package", "core max"),
+                    "Temperature",
+                    exclude_hints=("distance to tjmax", "nvidia", "radeon", "arc", "gpu"),
+                ),
+            ),
+            (
+                "CPU Load",
+                self._best_row(
+                    rows,
+                    ("intel", "amd", "cpu", "ryzen"),
+                    ("total", "cpu total"),
+                    "Load",
+                    exclude_hints=("nvidia", "radeon", "arc", "gpu"),
+                ),
+            ),
+            ("GPU Hotspot", self._best_row(rows, ("nvidia", "radeon", "arc", "gpu"), ("hot spot", "hotspot", "gpu core", "core"), "Temperature")),
+            (
+                "GPU Load",
+                self._best_row(
+                    rows,
+                    ("nvidia", "radeon", "arc", "gpu"),
+                    ("d3d 3d", "gpu core", "gpu memory", "core"),
+                    "Load",
+                    allow_zero=False,
+                ),
+            ),
+            (
+                "GPU Power",
+                self._best_row(
+                    rows,
+                    ("nvidia", "radeon", "arc", "gpu"),
+                    ("gpu package", "board power", "gpu power", "package"),
+                    "Power",
+                    allow_zero=False,
+                ),
+            ),
+            (
+                "CPU Fan",
+                self._best_row(
+                    rows,
+                    ("asus", "motherboard", "board", "cpu"),
+                    ("cpu fan", "aio", "pump", "cha fan", "fan"),
+                    "Fan",
+                    allow_zero=False,
+                ),
+            ),
+            (
+                "Drive Temp",
+                self._best_row(
+                    rows,
+                    ("ssd", "nvme", "samsung", "wd", "kingston", "crucial"),
+                    ("composite temperature", "temperature #1", "assembly", "temperature"),
+                    "Temperature",
+                    exclude_hints=("critical temperature", "warning temperature"),
+                ),
+            ),
         ]
+
+    def _favorite_rows(self, rows: list[SensorRow]) -> list[tuple[str, str, str]]:
+        auto_candidates = self._favorite_candidates(rows)
+        row_by_path = {row.path: row for row in rows if row.kind == "sensor"}
         out: list[tuple[str, str, str]] = []
         seen: set[str] = set()
-        for label, row in picks:
+        for path in sorted(self.favorite_paths):
+            row = row_by_path.get(path)
+            if not row or row.path in seen:
+                continue
+            seen.add(row.path)
+            out.append((f"* {row.name}", row.path.split("/")[-2], self._value_text(row)))
+        for label, row in auto_candidates:
             if not row or row.path in seen:
                 continue
             seen.add(row.path)
             out.append((label, row.name, self._value_text(row)))
         return out
+
+    def _favorite_path_for_label(self, rows: list[SensorRow], label: str) -> str | None:
+        for candidate_label, row in self._favorite_candidates(rows):
+            if candidate_label == label and row:
+                return row.path
+        return None
 
     def _cpu_core_rows(self, rows: list[SensorRow]) -> list[tuple[str, str]]:
         core_rows = []
@@ -427,6 +1014,8 @@ class SensorApp:
                 continue
             haystack = f"{row.path} {row.name}".lower()
             if "core" not in haystack:
+                continue
+            if "distance to tjmax" in haystack:
                 continue
             if not any(token in haystack for token in ("intel", "amd", "cpu", "ryzen", "core")):
                 continue
@@ -497,18 +1086,21 @@ class SensorApp:
     def _persist_config(self) -> None:
         os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, "w", encoding="utf-8") as handle:
-            json.dump({"url": self.url_var.get(), "interval_ms": self.interval_var.get()}, handle, indent=2)
+            json.dump(
+                {
+                    "url": self.url_var.get(),
+                    "interval_ms": self.interval_var.get(),
+                    "hardware_filter": self.hardware_var.get(),
+                    "favorite_paths": sorted(self.favorite_paths),
+                },
+                handle,
+                indent=2,
+            )
 
 
 def load_config() -> tuple[str, int]:
-    if not os.path.exists(CONFIG_PATH):
-        return DEFAULT_URL, 2000
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        return data.get("url", DEFAULT_URL), int(data.get("interval_ms", 2000))
-    except Exception:
-        return DEFAULT_URL, 2000
+    data = SensorApp._load_config_data()
+    return data.get("url", DEFAULT_URL), int(data.get("interval_ms", 2000))
 
 
 def main() -> None:

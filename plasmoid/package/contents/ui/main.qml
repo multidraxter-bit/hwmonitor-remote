@@ -202,7 +202,6 @@ PlasmoidItem {
         id: notification
         componentName: "com.github.loofi.hwremotemonitor"
         eventId: "sensor-alert"
-        appName: "HWMonitor Remote"
     }
 
     Component.onCompleted: refresh()

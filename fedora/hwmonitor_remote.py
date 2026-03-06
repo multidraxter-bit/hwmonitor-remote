@@ -267,10 +267,11 @@ class SensorApp:
         ttk.Button(filter_bar, text="Expand", command=lambda: self._set_all_open(True)).grid(row=0, column=8, padx=(6, 6))
         ttk.Button(filter_bar, text="Collapse", command=lambda: self._set_all_open(False)).grid(row=0, column=9, padx=(0, 6))
         ttk.Button(filter_bar, text="Reset", command=self._reset_filters).grid(row=0, column=10, padx=(0, 10))
+        ttk.Button(filter_bar, text="Export CSV", command=self._export_csv).grid(row=0, column=11, padx=(0, 10))
         self.count_label = ttk.Label(filter_bar, text="0 sensors", style="Muted.TLabel")
-        self.count_label.grid(row=0, column=11, sticky="e")
+        self.count_label.grid(row=0, column=12, sticky="e")
         filter_bar.columnconfigure(1, weight=1)
-        filter_bar.columnconfigure(11, weight=1)
+        filter_bar.columnconfigure(12, weight=1)
         ttk.Label(explorer, textvariable=self.hint_var, style="Muted.TLabel").pack(anchor="w", pady=(2, 8))
 
         self.tree_frame = ttk.Frame(explorer, style="Card.TFrame", padding=6)
@@ -340,6 +341,7 @@ class SensorApp:
         self.root.bind("<Control-l>", self._focus_source)
         self.root.bind("<Control-c>", self._copy_selected_value)
         self.root.bind("<Escape>", self._handle_escape)
+        self.root.bind("<p>", lambda _event: self._toggle_selected_favorite())
 
         self.root.after(150, self._set_initial_layout)
 
@@ -515,6 +517,13 @@ class SensorApp:
             sensor_hints=("hot spot", "hotspot", "gpu core", "core"),
             sensor_type="Temperature",
         )
+        gpu_load = self._best_row(
+            rows,
+            hardware_hints=("nvidia", "radeon", "arc", "gpu"),
+            sensor_hints=("gpu core", "d3d 3d", "core"),
+            sensor_type="Load",
+            allow_zero=False,
+        )
         cooling = self._best_row(
             rows,
             hardware_hints=("asus", "motherboard", "board", "cpu"),
@@ -538,7 +547,10 @@ class SensorApp:
         for name, row in summaries.items():
             if row:
                 self.summary_value_vars[name].set(self._value_text(row))
-                self.summary_detail_vars[name].set(f"{row.name}  {self._history_text(row.path)}")
+                detail = f"{row.name}  {self._history_text(row.path)}"
+                if name == "GPU" and gpu_load:
+                    detail += f"  |  Load {self._value_text(gpu_load)}"
+                self.summary_detail_vars[name].set(detail)
             else:
                 self.summary_value_vars[name].set("--")
                 self.summary_detail_vars[name].set("No sensor")
@@ -927,6 +939,27 @@ class SensorApp:
                 self.status_var.set(f"Focused problem sensor {path}")
                 return
 
+    def _export_csv(self) -> None:
+        import csv
+        import datetime
+
+        rows = self.current_rows
+        if not rows:
+            self.status_var.set("No data to export")
+            return
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.expanduser(f"~/hwremote-snapshot-{timestamp}.csv")
+        sensor_rows = [r for r in rows if r.kind == "sensor" and r.value is not None]
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["path", "name", "type", "value", "unit", "min", "max", "severity"])
+                for r in sensor_rows:
+                    writer.writerow([r.path, r.name, r.sensor_type, r.value, r.unit, r.min_value, r.max_value, r.severity])
+            self.status_var.set(f"Exported {len(sensor_rows)} sensors to {path}")
+        except OSError as exc:
+            self.status_var.set(f"Export failed: {exc}")
+
     def _on_tree_select(self, _event=None) -> None:
         selection = self.tree.selection()
         if not selection:
@@ -1035,7 +1068,7 @@ class SensorApp:
 
     @staticmethod
     def _sparkline(samples: list[float]) -> str:
-        chars = "._-~=^"
+        chars = "▁▂▃▄▅▆▇█"
         if len(samples) == 1:
             return chars[-1]
         low = min(samples)
@@ -1398,7 +1431,7 @@ class SensorApp:
 
     @staticmethod
     def _default_hint_text() -> str:
-        return "F5/Ctrl+R refresh  |  Ctrl+F search  |  Esc clear filters/selection  |  Enter favorite opens"
+        return "F5/Ctrl+R refresh  |  Ctrl+F search  |  P pin sensor  |  Esc clear filters/selection  |  Enter favorite opens"
 
     def _count_label_text(self) -> str:
         parts = [f"{self.visible_sensor_count} sensors", f"{self.visible_group_count} groups"]

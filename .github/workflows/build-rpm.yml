@@ -1,0 +1,47 @@
+name: build-rpm
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+
+jobs:
+  rpm:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf -y install \
+            git \
+            python3 \
+            rpm-build \
+            rpmdevtools \
+            redhat-rpm-config \
+            desktop-file-utils
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build RPM
+        run: |
+          chmod +x scripts/build-rpm.sh
+          ./scripts/build-rpm.sh
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp -v ~/rpmbuild/RPMS/noarch/*.rpm artifacts/
+          cp -v ~/rpmbuild/SRPMS/*.src.rpm artifacts/
+          cp -v ~/rpmbuild/SOURCES/*.tar.gz artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hwmonitor-remote-rpms
+          path: artifacts/*

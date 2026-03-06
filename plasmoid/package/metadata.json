@@ -1,0 +1,20 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "loofi@github.com",
+                "Name": "Loofi"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "HWMonitor-style remote sensor tree for a Windows machine over SSH or HTTP",
+        "Icon": "utilities-system-monitor",
+        "Id": "com.github.loofi.hwremotemonitor",
+        "License": "GPL-3.0-or-later",
+        "Name": "HWMonitor Remote",
+        "Version": "0.1.0",
+        "Website": "https://github.com/loofitheboss"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

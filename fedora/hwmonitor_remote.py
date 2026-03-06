@@ -233,21 +233,21 @@ class SensorApp:
         tree_frame.rowconfigure(0, weight=1)
         tree_frame.columnconfigure(0, weight=1)
 
-        detail_frame = ttk.Frame(explorer, style="Card.TFrame", padding=8)
-        detail_frame.pack(fill="x", pady=(8, 0))
-        ttk.Label(detail_frame, text="Selected Sensor", style="Section.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(detail_frame, textvariable=self.detail_name_var, style="Title.TLabel").grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(detail_frame, textvariable=self.detail_meta_var, style="Muted.TLabel").grid(row=2, column=0, sticky="w", pady=(2, 0))
-        ttk.Label(detail_frame, textvariable=self.detail_value_var, style="CardValue.TLabel").grid(row=1, column=1, sticky="e", padx=(20, 0))
-        ttk.Label(detail_frame, textvariable=self.detail_range_var, style="CardDetail.TLabel").grid(row=2, column=1, sticky="e", padx=(20, 0))
-        ttk.Label(detail_frame, textvariable=self.detail_history_var, style="Muted.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        actions = ttk.Frame(detail_frame, style="Card.TFrame")
+        self.detail_frame = ttk.Frame(explorer, style="Card.TFrame", padding=8)
+        # Not packed initially — shown only when a sensor is selected
+        ttk.Label(self.detail_frame, text="Selected Sensor", style="Section.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(self.detail_frame, textvariable=self.detail_name_var, style="Title.TLabel").grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(self.detail_frame, textvariable=self.detail_meta_var, style="Muted.TLabel").grid(row=2, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(self.detail_frame, textvariable=self.detail_value_var, style="CardValue.TLabel").grid(row=1, column=1, sticky="e", padx=(20, 0))
+        ttk.Label(self.detail_frame, textvariable=self.detail_range_var, style="CardDetail.TLabel").grid(row=2, column=1, sticky="e", padx=(20, 0))
+        ttk.Label(self.detail_frame, textvariable=self.detail_history_var, style="Muted.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        actions = ttk.Frame(self.detail_frame, style="Card.TFrame")
         actions.grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
         ttk.Button(actions, text="Pin", command=self._toggle_selected_favorite).pack(side="left")
         ttk.Button(actions, text="Copy Path", command=self._copy_selected_path).pack(side="left", padx=(6, 0))
         ttk.Button(actions, text="Copy Value", command=self._copy_selected_value).pack(side="left", padx=(6, 0))
         ttk.Button(actions, text="Focus Hardware", command=self._focus_selected_hardware).pack(side="left", padx=(6, 0))
-        detail_frame.columnconfigure(0, weight=1)
+        self.detail_frame.columnconfigure(0, weight=1)
 
         self.tree_menu = tk.Menu(self.root, tearoff=False)
         self.tree_menu.add_command(label="Pin / Unpin Sensor", command=self._toggle_selected_favorite)
@@ -677,6 +677,7 @@ class SensorApp:
     def _on_tree_select(self, _event=None) -> None:
         selection = self.tree.selection()
         if not selection:
+            self.detail_frame.pack_forget()
             self.detail_name_var.set("No sensor selected")
             self.detail_meta_var.set("")
             self.detail_value_var.set("")
@@ -696,6 +697,7 @@ class SensorApp:
         self.detail_name_var.set(name)
         self.detail_meta_var.set(f"{node_type}  |  {path}")
         if kind == "sensor":
+            self.detail_frame.pack(fill="x", pady=(8, 0))
             value_text = self._format_value(node.get("value"), unit) or "--"
             min_text = self._format_value(node.get("min"), unit) or "--"
             max_text = self._format_value(node.get("max"), unit) or "--"
@@ -704,6 +706,7 @@ class SensorApp:
             pin_state = "Pinned" if path in self.favorite_paths else "Double-click tree to pin"
             self.detail_history_var.set(f"{pin_state}  |  Trend {self._history_text(path)}")
         else:
+            self.detail_frame.pack_forget()
             child_count = len(node.get("children", []))
             self.detail_value_var.set(f"{child_count} items")
             self.detail_range_var.set("")

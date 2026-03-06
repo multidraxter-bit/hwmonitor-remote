@@ -48,7 +48,7 @@ PlasmoidItem {
         criticalLoadPct: plasmoid.configuration.criticalLoadPct
     })
 
-    switchWidth: Kirigami.Units.gridUnit * 32
+    switchWidth: inPanel ? Kirigami.Units.gridUnit * 32 : Kirigami.Units.gridUnit * 48
     switchHeight: Kirigami.Units.gridUnit * 34
     preferredRepresentation: inPanel ? compactRepresentation : fullRepresentation
 

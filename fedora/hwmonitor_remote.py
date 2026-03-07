@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 import threading
@@ -15,6 +16,7 @@ from tkinter import ttk
 
 
 DEFAULT_URL = "ssh://loofi@192.168.1.3"
+DEFAULT_SSH_SCRIPT = r"C:\Users\loofi\hwremote-monitor\lhm-snapshot.ps1"
 CONFIG_PATH = os.path.expanduser("~/.config/hwremote-monitor.json")
 CATEGORY_VALUES = ("all", "temperature", "load", "cooling", "power", "clock", "storage")
 SEVERITY_FILTER_VALUES = ("all", "active", "critical", "warn")

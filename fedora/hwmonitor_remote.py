@@ -199,7 +199,7 @@ class SensorApp:
         style.configure("CardValue.TLabel", background=card, foreground=text, font=("DejaVu Sans", 17, "bold"))
         style.configure("CardDetail.TLabel", background=card, foreground=muted, font=("DejaVu Sans", 10))
         style.configure("Section.TLabel", background=panel, foreground=text, font=("DejaVu Sans", 11, "bold"))
-        style.configure("Treeview", background=panel, foreground=text, fieldbackground=panel, rowheight=23, borderwidth=0, font=("DejaVu Sans Mono", 10))
+        style.configure("Treeview", background=panel, foreground=text, fieldbackground=panel, rowheight=22, borderwidth=0, font=("DejaVu Sans Mono", 10))
         style.configure("Treeview.Heading", background=card, foreground=text, relief="flat", font=("DejaVu Sans", 10, "bold"))
         style.map("Treeview", background=[("selected", "#2a3642")], foreground=[("selected", text)])
         style.configure("TEntry", fieldbackground=card, foreground=text, insertcolor=text, bordercolor=edge)
@@ -222,10 +222,10 @@ class SensorApp:
         style.configure("Overview.TNotebook.Tab", background=card, foreground=muted, padding=(10, 6), font=("DejaVu Sans", 10, "bold"))
         style.map("Overview.TNotebook.Tab", background=[("selected", "#24303b")], foreground=[("selected", text)])
 
-        outer = ttk.Frame(self.root, style="App.TFrame", padding=10)
+        outer = ttk.Frame(self.root, style="App.TFrame", padding=8)
         outer.pack(fill="both", expand=True)
 
-        header = ttk.Frame(outer, style="Panel.TFrame", padding=10)
+        header = ttk.Frame(outer, style="Panel.TFrame", padding=8)
         header.pack(fill="x")
 
         left_header = ttk.Frame(header, style="Panel.TFrame")
@@ -342,7 +342,7 @@ class SensorApp:
         summary_grid.pack(fill="x")
         summary_specs = ("CPU", "GPU", "Cooling", "Drive")
         for idx, title in enumerate(summary_specs):
-            card_frame = ttk.Frame(summary_grid, style="Card.TFrame", padding=10)
+            card_frame = ttk.Frame(summary_grid, style="Card.TFrame", padding=8)
             row = idx // 2
             col = idx % 2
             card_frame.grid(row=row, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0), pady=(0, 6))

@@ -152,6 +152,8 @@ class SensorApp:
         self.wallboard_detail_var = tk.StringVar(value="Toggle wallboard mode for passive monitoring")
         self._banner_dismissed = False
         self.problem_paths: list[str] = []
+        self.scope_buttons: dict[str, ttk.Button] = {}
+        self.active_scope: str = "all"
         self._load_saved_state()
 
         self._build_ui()
@@ -206,6 +208,9 @@ class SensorApp:
         )
         style.configure("TButton", background=card, foreground=text, bordercolor=edge)
         style.map("TButton", background=[("active", "#24303b")])
+        style.configure("Scope.TButton", background=card, foreground=muted, bordercolor=edge)
+        style.configure("Scope.Active.TButton", background="#1a5e8c", foreground=text, bordercolor="#2a8fc7")
+        style.map("Scope.Active.TButton", background=[("active", "#1a6fa8")])
         style.configure("TCheckbutton", background=panel, foreground=text)
         style.configure("Overview.TNotebook", background=panel, borderwidth=0, tabmargins=(0, 0, 0, 0))
         style.configure("Overview.TNotebook.Tab", background=card, foreground=muted, padding=(10, 6), font=("DejaVu Sans", 10, "bold"))
@@ -416,10 +421,12 @@ class SensorApp:
         self.search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=34)
         self.search_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
         self.search_entry.bind("<KeyRelease>", lambda _event: self._rebuild_tree())
-        ttk.Button(filter_bar, text="All", command=lambda: self._apply_quick_scope("all")).grid(row=0, column=2, padx=(0, 6))
-        ttk.Button(filter_bar, text="Alerts", command=lambda: self._apply_quick_scope("active")).grid(row=0, column=3, padx=(0, 6))
-        ttk.Button(filter_bar, text="HWiNFO", command=lambda: self._apply_quick_scope("hwinfo")).grid(row=0, column=4, padx=(0, 6))
-        ttk.Button(filter_bar, text="Native", command=lambda: self._apply_quick_scope("native")).grid(row=0, column=5, padx=(0, 12))
+        for _scope_key, _scope_label, _col in (("all", "All", 2), ("active", "Alerts", 3), ("hwinfo", "HWiNFO", 4), ("native", "Native", 5)):
+            _pad = (0, 6) if _scope_key != "native" else (0, 12)
+            _style = "Scope.Active.TButton" if _scope_key == "all" else "Scope.TButton"
+            _btn = ttk.Button(filter_bar, text=_scope_label, style=_style, command=lambda s=_scope_key: self._apply_quick_scope(s))
+            _btn.grid(row=0, column=_col, padx=_pad)
+            self.scope_buttons[_scope_key] = _btn
         self.count_label = ttk.Label(filter_bar, text="0 sensors", style="Muted.TLabel")
         self.count_label.grid(row=0, column=6, sticky="e")
         ttk.Label(filter_bar, text="Category", style="Muted.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
@@ -607,6 +614,11 @@ class SensorApp:
         self.status_var.set(f"Saved source preset: {preset}")
         return "break"
 
+    def _refresh_scope_buttons(self, active_scope: str) -> None:
+        self.active_scope = active_scope
+        for scope, btn in self.scope_buttons.items():
+            btn.configure(style=SensorApp._scope_button_style_name(scope, active_scope))
+
     def _apply_quick_scope(self, scope: str) -> None:
         if scope == "all":
             self.search_var.set("")
@@ -631,6 +643,7 @@ class SensorApp:
             self.source_var.set("LibreHardwareMonitorLib")
             self.hardware_var.set("all")
             self.compact_mode_var.set(True)
+        self._refresh_scope_buttons(scope)
         self._rebuild_tree()
 
     def _toggle_wallboard_mode(self) -> str:
@@ -2214,6 +2227,11 @@ class SensorApp:
     def _bar_color(severity: str) -> str:
         """Return progress bar fill color for a given severity string."""
         return {"warn": "#ffb020", "critical": "#ff5d5d"}.get(severity, "#37c871")
+
+    @staticmethod
+    def _scope_button_style_name(scope: str, active_scope: str) -> str:
+        """Return the ttk style name for a scope button given the currently active scope."""
+        return "Scope.Active.TButton" if scope == active_scope else "Scope.TButton"
 
     def _threshold_text(self, path: str, sensor_type: str, value: float | None, unit: str) -> str:
         thresholds = self._thresholds_for_path(path, sensor_type)

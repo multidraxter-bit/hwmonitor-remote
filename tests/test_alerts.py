@@ -248,3 +248,11 @@ def test_bar_fill_unknown_sensor_type_returns_zero():
 
 def test_bar_fill_fan_clamps_above_3000():
     assert SensorApp._bar_fill(6000.0, "Fan") == 1.0
+
+
+def test_scope_button_style_active():
+    assert SensorApp._scope_button_style_name("all", "all") == "Scope.Active.TButton"
+
+
+def test_scope_button_style_inactive():
+    assert SensorApp._scope_button_style_name("active", "all") == "Scope.TButton"

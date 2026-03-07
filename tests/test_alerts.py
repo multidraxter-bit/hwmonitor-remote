@@ -212,3 +212,33 @@ def test_wallboard_texts_for_stable_system():
     title, detail = SensorApp._wallboard_texts(0, 0, "", 120)
     assert title == "System Stable"
     assert "Monitoring 120 sensors" in detail
+
+
+import pytest
+
+
+def test_bar_fill_temperature_normal():
+    assert SensorApp._bar_fill(45.0, "Temperature") == pytest.approx(45.0 / 90.0)
+
+
+def test_bar_fill_temperature_clamps_at_one():
+    assert SensorApp._bar_fill(100.0, "Temperature") == 1.0
+
+
+def test_bar_fill_none_returns_zero():
+    assert SensorApp._bar_fill(None, "Temperature") == 0.0
+
+
+def test_bar_fill_fan_uses_3000_max():
+    assert SensorApp._bar_fill(1500.0, "Fan") == pytest.approx(0.5)
+
+
+def test_bar_fill_load():
+    assert SensorApp._bar_fill(50.0, "Load") == pytest.approx(50.0 / 95.0)
+
+
+def test_bar_color_severity():
+    assert SensorApp._bar_color("warn") == "#ffb020"
+    assert SensorApp._bar_color("critical") == "#ff5d5d"
+    assert SensorApp._bar_color("cool") == "#37c871"
+    assert SensorApp._bar_color("normal") == "#37c871"

@@ -109,6 +109,7 @@ class SensorApp:
         self.current_rows: list[SensorRow] = []
         self.summary_value_vars: dict[str, tk.StringVar] = {}
         self.summary_detail_vars: dict[str, tk.StringVar] = {}
+        self.summary_bar_canvases: dict[str, tk.Canvas] = {}
         self.favorite_rows: list[FavoriteRow] = []
         self.active_alert_rows: list[InsightRow] = []
         self.top_mover_rows: list[InsightRow] = []
@@ -321,6 +322,9 @@ class SensorApp:
             ttk.Label(card_frame, textvariable=detail_var, style="CardDetail.TLabel").pack(anchor="w", pady=(4, 0))
             self.summary_value_vars[title] = value_var
             self.summary_detail_vars[title] = detail_var
+            bar_canvas = tk.Canvas(card_frame, height=6, bg="#27313c", highlightthickness=0, bd=0)
+            bar_canvas.pack(fill="x", pady=(6, 0))
+            self.summary_bar_canvases[title] = bar_canvas
 
         insights_tabs = ttk.Notebook(overview, style="Overview.TNotebook")
         insights_tabs.pack(fill="both", expand=True, pady=(8, 0))
@@ -975,6 +979,22 @@ class SensorApp:
         self._on_tree_select()
         self._apply_wallboard_mode()
 
+    def _redraw_summary_bar(self, name: str, row: SensorRow | None) -> None:
+        canvas = self.summary_bar_canvases.get(name)
+        if canvas is None:
+            return
+        canvas.delete("all")
+        w = canvas.winfo_width() or int(canvas.cget("width"))
+        h = int(canvas.cget("height"))
+        canvas.create_rectangle(0, 0, w, h, fill="#27313c", outline="")
+        if row is None or row.value is None:
+            return
+        fill = SensorApp._bar_fill(row.value, row.sensor_type)
+        color = SensorApp._bar_color(row.severity)
+        bar_w = max(int(w * fill), 0)
+        if bar_w > 0:
+            canvas.create_rectangle(0, 0, bar_w, h, fill=color, outline="")
+
     def _update_overview(self, rows: list[SensorRow]) -> None:
         self._update_history(rows)
         cpu_temp = self._best_row(
@@ -1032,9 +1052,11 @@ class SensorApp:
                 if name == "GPU" and gpu_load:
                     detail += f"  |  Load {self._value_text(gpu_load)}"
                 self.summary_detail_vars[name].set(detail)
+                self._redraw_summary_bar(name, row)
             else:
                 self.summary_value_vars[name].set("--")
                 self.summary_detail_vars[name].set("No sensor")
+                self._redraw_summary_bar(name, None)
 
         favorites = self._favorite_rows(rows)
         self.favorite_rows = favorites
@@ -2172,6 +2194,23 @@ class SensorApp:
         if sensor_type == "Power":
             return {"warn": 220.0, "critical": 300.0}
         return None
+
+    @staticmethod
+    def _bar_fill(value: float | None, sensor_type: str) -> float:
+        """Return 0.0–1.0 fill fraction for a summary card progress bar."""
+        if value is None:
+            return 0.0
+        if sensor_type == "Fan":
+            return min(value / 3000.0, 1.0)
+        thresholds = SensorApp._default_thresholds(sensor_type)
+        if thresholds is None:
+            return 0.0
+        return min(value / thresholds["critical"], 1.0)
+
+    @staticmethod
+    def _bar_color(severity: str) -> str:
+        """Return progress bar fill color for a given severity string."""
+        return {"warn": "#ffb020", "critical": "#ff5d5d"}.get(severity, "#37c871")
 
     def _threshold_text(self, path: str, sensor_type: str, value: float | None, unit: str) -> str:
         thresholds = self._thresholds_for_path(path, sensor_type)

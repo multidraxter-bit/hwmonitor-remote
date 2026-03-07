@@ -245,16 +245,20 @@ class SensorApp:
         interval_box = ttk.Combobox(controls, width=8, state="readonly", textvariable=self.interval_var, values=(1000, 2000, 3000, 5000, 10000))
         interval_box.grid(row=0, column=5, padx=(6, 0))
         interval_box.bind("<<ComboboxSelected>>", lambda _event: self._reschedule())
-        ttk.Label(controls, text="Preset", style="Muted.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        self.preset_box = ttk.Combobox(controls, width=38, state="readonly", textvariable=self.source_preset_var)
-        self.preset_box.grid(row=1, column=1, sticky="ew", padx=(6, 8), pady=(8, 0))
-        self.preset_box.bind("<<ComboboxSelected>>", self._apply_selected_preset)
-        ttk.Button(controls, text="Use", command=self._apply_selected_preset).grid(row=1, column=2, padx=(0, 8), pady=(8, 0))
-        ttk.Button(controls, text="Save Preset", command=self._save_current_preset).grid(row=1, column=3, padx=(0, 8), pady=(8, 0))
+        self.settings_toggle_btn = ttk.Button(controls, text="⚙", width=3, command=self._toggle_settings_panel)
+        self.settings_toggle_btn.grid(row=0, column=7, padx=(6, 0))
         controls.columnconfigure(1, weight=1)
 
-        self.ssh_settings_frame = ttk.Frame(controls, style="Panel.TFrame")
-        self.ssh_settings_frame.grid(row=2, column=0, columnspan=7, sticky="ew", pady=(8, 0))
+        self.settings_panel = ttk.Frame(controls, style="Panel.TFrame")
+        self.settings_panel.grid(row=1, column=0, columnspan=8, sticky="ew", pady=(8, 0))
+        ttk.Label(self.settings_panel, text="Preset", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+        self.preset_box = ttk.Combobox(self.settings_panel, width=38, state="readonly", textvariable=self.source_preset_var)
+        self.preset_box.grid(row=0, column=1, sticky="ew", padx=(6, 8))
+        self.preset_box.bind("<<ComboboxSelected>>", self._apply_selected_preset)
+        ttk.Button(self.settings_panel, text="Use", command=self._apply_selected_preset).grid(row=0, column=2, padx=(0, 8))
+        ttk.Button(self.settings_panel, text="Save Preset", command=self._save_current_preset).grid(row=0, column=3, padx=(0, 8))
+        self.ssh_settings_frame = ttk.Frame(self.settings_panel, style="Panel.TFrame")
+        self.ssh_settings_frame.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         ttk.Label(self.ssh_settings_frame, text="Script Path", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
         ssh_script_entry = ttk.Entry(self.ssh_settings_frame, textvariable=self.ssh_script_path_var, width=52)
         ssh_script_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
@@ -266,6 +270,7 @@ class SensorApp:
         ssh_args_entry.bind("<Return>", lambda _e: self._persist_config())
         ttk.Button(self.ssh_settings_frame, text="Set", command=self._persist_config).grid(row=1, column=2, padx=(0, 8), pady=(8, 0))
         self.ssh_settings_frame.columnconfigure(1, weight=1)
+        self.settings_panel.columnconfigure(1, weight=1)
 
         telemetry_bar = ttk.Frame(outer, style="Panel.TFrame", padding=8)
         telemetry_bar.pack(fill="x", pady=(8, 0))
@@ -575,12 +580,25 @@ class SensorApp:
         self.root.after(150, self._set_initial_layout)
         self.url_var.trace_add("write", self._refresh_ssh_settings_visibility)
         self._refresh_ssh_settings_visibility()
+        if not self.settings_expanded.get():
+            self.settings_panel.grid_remove()
 
     def _refresh_ssh_settings_visibility(self, *_args) -> None:
         if self.url_var.get().startswith("ssh://"):
             self.ssh_settings_frame.grid()
         else:
             self.ssh_settings_frame.grid_remove()
+
+    def _toggle_settings_panel(self) -> None:
+        expanded = not self.settings_expanded.get()
+        self.settings_expanded.set(expanded)
+        if expanded:
+            self.settings_panel.grid()
+            self.settings_toggle_btn.configure(text="✕")
+        else:
+            self.settings_panel.grid_remove()
+            self.settings_toggle_btn.configure(text="⚙")
+        self._persist_config()
 
     def _set_app_icon(self) -> None:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

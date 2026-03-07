@@ -1316,6 +1316,8 @@ class SensorApp:
         self.source_var.set("all")
         self.hardware_var.set("all")
         self.compact_mode_var.set(True)
+        self.hw_group_var.set(False)
+        self._refresh_scope_buttons("all")
         self._rebuild_tree()
 
     def _handle_escape(self, _event=None) -> str:

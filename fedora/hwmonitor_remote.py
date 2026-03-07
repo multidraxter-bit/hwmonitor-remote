@@ -932,7 +932,7 @@ class SensorApp:
             "ssh",
             *extra_args,
             target,
-            f"powershell -NoProfile -ExecutionPolicy Bypass -File {remote_script}",
+            f'powershell -NoProfile -ExecutionPolicy Bypass -File "{remote_script}"',
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=True)
         return json.loads(result.stdout)

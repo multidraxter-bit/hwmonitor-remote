@@ -902,14 +902,13 @@ class SensorApp:
         self.hint_var.set("Last refresh failed  |  Check source host, SSH, and Windows sensor script  |  Esc clears filters")
         self._reschedule()
 
-    @staticmethod
-    def _fetch_over_ssh(url: str) -> dict:
+    def _fetch_over_ssh(self, url: str) -> dict:
         target = url[len("ssh://") :]
-        remote_script = r"C:\Users\loofi\hwremote-monitor\lhm-snapshot.ps1"
+        remote_script = self.ssh_script_path_var.get() or DEFAULT_SSH_SCRIPT
+        extra_args = shlex.split(self.ssh_extra_args_var.get())
         cmd = [
             "ssh",
-            "-F",
-            "/dev/null",
+            *extra_args,
             target,
             f"powershell -NoProfile -ExecutionPolicy Bypass -File {remote_script}",
         ]

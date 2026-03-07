@@ -272,20 +272,22 @@ class SensorApp:
         self.ssh_settings_frame.columnconfigure(1, weight=1)
         self.settings_panel.columnconfigure(1, weight=1)
 
-        telemetry_bar = ttk.Frame(outer, style="Panel.TFrame", padding=8)
-        telemetry_bar.pack(fill="x", pady=(8, 0))
-        telemetry_specs = (
+        telemetry_bar = ttk.Frame(outer, style="Panel.TFrame", padding=(8, 4))
+        telemetry_bar.pack(fill="x", pady=(6, 0))
+        sep_color = "#3a4a5a"
+        for index, (label_text, var) in enumerate((
             ("Source Health", self.header_source_var),
             ("Snapshot", self.header_snapshot_var),
             ("Focus", self.header_filter_var),
-            ("Alerts", self.header_alert_var),
-        )
-        for index, (title, variable) in enumerate(telemetry_specs):
-            cell = ttk.Frame(telemetry_bar, style="Card.TFrame", padding=10)
-            cell.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 6, 0))
-            telemetry_bar.columnconfigure(index, weight=1)
-            ttk.Label(cell, text=title, style="CardTitle.TLabel").pack(anchor="w")
-            ttk.Label(cell, textvariable=variable, style="CardDetail.TLabel", wraplength=280, justify="left").pack(anchor="w", pady=(4, 0))
+        )):
+            if index > 0:
+                tk.Label(telemetry_bar, text=" │ ", bg=panel, fg=sep_color, font=("DejaVu Sans", 10)).pack(side="left")
+            tk.Label(telemetry_bar, text=f"{label_text}: ", bg=panel, fg=muted, font=("DejaVu Sans", 9, "bold")).pack(side="left")
+            tk.Label(telemetry_bar, textvariable=var, bg=panel, fg=text, font=("DejaVu Sans", 9)).pack(side="left")
+        tk.Label(telemetry_bar, text=" │ ", bg=panel, fg=sep_color, font=("DejaVu Sans", 10)).pack(side="left")
+        tk.Label(telemetry_bar, text="Alerts: ", bg=panel, fg=muted, font=("DejaVu Sans", 9, "bold")).pack(side="left")
+        self.telemetry_alert_label = tk.Label(telemetry_bar, textvariable=self.header_alert_var, bg=panel, fg=muted, font=("DejaVu Sans", 9, "bold"))
+        self.telemetry_alert_label.pack(side="left")
 
         self.alert_banner = tk.Frame(outer, bg="#7c2020", padx=10, pady=6)
         # Not packed by default — only shown when alerts exist
@@ -796,6 +798,12 @@ class SensorApp:
             self.header_alert_var.set(" / ".join(alert_bits))
         else:
             self.header_alert_var.set("No active alerts")
+        if critical_count:
+            self.telemetry_alert_label.configure(fg="#ff5d5d")
+        elif warn_count:
+            self.telemetry_alert_label.configure(fg="#ffb020")
+        else:
+            self.telemetry_alert_label.configure(fg="#8b9bae")
 
     @staticmethod
     def _wallboard_texts(critical_count: int, warn_count: int, focus_path: str, sensor_count: int) -> tuple[str, str]:

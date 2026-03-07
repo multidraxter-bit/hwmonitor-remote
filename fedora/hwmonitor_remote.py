@@ -2145,8 +2145,8 @@ class SensorApp:
             high = low + 1
 
         for value, color in (
-            (thresholds.get("warn"), "#7c5c00"),
-            (thresholds.get("critical"), "#7c2020"),
+            (thresholds.get("warn"), "#ffb020"),
+            (thresholds.get("critical"), "#ff5d5d"),
         ):
             if value is None:
                 continue

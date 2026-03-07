@@ -1856,6 +1856,12 @@ class SensorApp:
         wallboard_mode = data.get("wallboard_mode", False)
         if isinstance(wallboard_mode, bool):
             self.wallboard_mode_var.set(wallboard_mode)
+        ssh_script = data.get("ssh_script_path", DEFAULT_SSH_SCRIPT)
+        if isinstance(ssh_script, str) and ssh_script.strip():
+            self.ssh_script_path_var.set(ssh_script)
+        ssh_extra = data.get("ssh_extra_args", "")
+        if isinstance(ssh_extra, str):
+            self.ssh_extra_args_var.set(ssh_extra)
 
     @staticmethod
     def _load_config_data() -> dict:

@@ -159,6 +159,7 @@ class SensorApp:
         self.active_scope: str = "all"
         self.ssh_script_path_var = tk.StringVar(value=DEFAULT_SSH_SCRIPT)
         self.ssh_extra_args_var = tk.StringVar(value="")
+        self.settings_expanded = tk.BooleanVar(value=False)
         self._load_saved_state()
 
         self._build_ui()
@@ -1883,6 +1884,9 @@ class SensorApp:
         ssh_extra = data.get("ssh_extra_args", "")
         if isinstance(ssh_extra, str):
             self.ssh_extra_args_var.set(ssh_extra)
+        settings_expanded = data.get("settings_expanded", False)
+        if isinstance(settings_expanded, bool):
+            self.settings_expanded.set(settings_expanded)
 
     @staticmethod
     def _load_config_data() -> dict:
@@ -2542,6 +2546,7 @@ class SensorApp:
                     "threshold_overrides": self.threshold_overrides,
                     "ssh_script_path": self.ssh_script_path_var.get(),
                     "ssh_extra_args": self.ssh_extra_args_var.get(),
+                    "settings_expanded": self.settings_expanded.get(),
                     "alert_history": [event.__dict__ for event in self.alert_history[:200]],
                 },
                 handle,

@@ -252,6 +252,20 @@ class SensorApp:
         ttk.Button(controls, text="Save Preset", command=self._save_current_preset).grid(row=1, column=3, padx=(0, 8), pady=(8, 0))
         controls.columnconfigure(1, weight=1)
 
+        self.ssh_settings_frame = ttk.Frame(controls, style="Panel.TFrame")
+        self.ssh_settings_frame.grid(row=2, column=0, columnspan=7, sticky="ew", pady=(8, 0))
+        ttk.Label(self.ssh_settings_frame, text="Script Path", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+        ssh_script_entry = ttk.Entry(self.ssh_settings_frame, textvariable=self.ssh_script_path_var, width=52)
+        ssh_script_entry.grid(row=0, column=1, sticky="ew", padx=(6, 8))
+        ssh_script_entry.bind("<Return>", lambda _e: self._persist_config())
+        ttk.Button(self.ssh_settings_frame, text="Set", command=self._persist_config).grid(row=0, column=2, padx=(0, 8))
+        ttk.Label(self.ssh_settings_frame, text="SSH Args", style="Muted.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ssh_args_entry = ttk.Entry(self.ssh_settings_frame, textvariable=self.ssh_extra_args_var, width=52)
+        ssh_args_entry.grid(row=1, column=1, sticky="ew", padx=(6, 8), pady=(8, 0))
+        ssh_args_entry.bind("<Return>", lambda _e: self._persist_config())
+        ttk.Button(self.ssh_settings_frame, text="Set", command=self._persist_config).grid(row=1, column=2, padx=(0, 8), pady=(8, 0))
+        self.ssh_settings_frame.columnconfigure(1, weight=1)
+
         telemetry_bar = ttk.Frame(outer, style="Panel.TFrame", padding=8)
         telemetry_bar.pack(fill="x", pady=(8, 0))
         telemetry_specs = (

@@ -104,6 +104,7 @@ class SensorApp:
         self.source_var = tk.StringVar(value="all")
         self.hardware_var = tk.StringVar(value="all")
         self.compact_mode_var = tk.BooleanVar(value=True)
+        self.hw_group_var = tk.BooleanVar(value=False)
         self.refresh_job = None
         self.current_payload: dict = {}
         self.current_rows: list[SensorRow] = []
@@ -446,10 +447,12 @@ class SensorApp:
         self.hardware_box.grid(row=1, column=7, padx=(6, 6), pady=(8, 0))
         self.hardware_box.bind("<<ComboboxSelected>>", lambda _event: self._rebuild_tree())
         ttk.Checkbutton(filter_bar, text="Compact", variable=self.compact_mode_var, command=self._rebuild_tree).grid(row=1, column=8, padx=(0, 8), pady=(8, 0))
-        ttk.Button(filter_bar, text="Expand", command=lambda: self._set_all_open(True)).grid(row=1, column=9, padx=(6, 6), pady=(8, 0))
-        ttk.Button(filter_bar, text="Collapse", command=lambda: self._set_all_open(False)).grid(row=1, column=10, padx=(0, 6), pady=(8, 0))
-        ttk.Button(filter_bar, text="Reset", command=self._reset_filters).grid(row=1, column=11, padx=(0, 10), pady=(8, 0))
-        ttk.Button(filter_bar, text="Export CSV", command=self._export_csv).grid(row=1, column=12, padx=(0, 10), pady=(8, 0))
+        by_hw_cb = ttk.Checkbutton(filter_bar, text="By HW", variable=self.hw_group_var, command=self._rebuild_tree)
+        by_hw_cb.grid(row=1, column=9, padx=(0, 8), pady=(8, 0))
+        ttk.Button(filter_bar, text="Expand", command=lambda: self._set_all_open(True)).grid(row=1, column=10, padx=(6, 6), pady=(8, 0))
+        ttk.Button(filter_bar, text="Collapse", command=lambda: self._set_all_open(False)).grid(row=1, column=11, padx=(0, 6), pady=(8, 0))
+        ttk.Button(filter_bar, text="Reset", command=self._reset_filters).grid(row=1, column=12, padx=(0, 10), pady=(8, 0))
+        ttk.Button(filter_bar, text="Export CSV", command=self._export_csv).grid(row=1, column=13, padx=(0, 10), pady=(8, 0))
         filter_bar.columnconfigure(1, weight=1)
         filter_bar.columnconfigure(6, weight=1)
         ttk.Label(explorer, textvariable=self.hint_var, style="Muted.TLabel").pack(anchor="w", pady=(2, 8))
@@ -476,7 +479,7 @@ class SensorApp:
         self.tree.tag_configure("critical", foreground=red)
         self.tree.tag_configure("cool", foreground=green)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
-        self.tree.bind("<Double-1>", self._toggle_selected_favorite)
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
         self.tree.bind("<Button-3>", self._show_tree_context_menu)
         yscroll = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         xscroll = ttk.Scrollbar(self.tree_frame, orient="horizontal", command=self.tree.xview)
@@ -1153,13 +1156,46 @@ class SensorApp:
             self.count_label.configure(text="0 sensors")
             self._refresh_header_summary()
             return
-        search = self.search_var.get().strip().lower()
-        category = self.category_var.get() or "all"
-        self._insert_tree_node("", self.current_payload, search, category, 0, "")
+        if self.hw_group_var.get():
+            self._insert_hw_group_tree()
+        else:
+            search = self.search_var.get().strip().lower()
+            category = self.category_var.get() or "all"
+            self._insert_tree_node("", self.current_payload, search, category, 0, "")
         self.count_label.configure(text=self._count_label_text())
         self._refresh_header_summary()
         self._restore_selection()
         self._persist_config()
+
+    def _insert_hw_group_tree(self) -> None:
+        """Insert only hardware-level nodes into the tree (no groups or sensors)."""
+        for child in self.current_payload.get("children", []):
+            if child.get("kind") != "hardware":
+                continue
+            name = child.get("name", "Unknown")
+            item = self.tree.insert("", "end", text=name, values=("", "", "", ""), tags=("hardware",))
+            self.item_paths[item] = name
+            self.item_nodes[item] = child
+            self.visible_group_count += 1
+
+    def _drill_into_selected_hardware(self) -> None:
+        """When in HW group mode, drill into the selected hardware node."""
+        selection = self.tree.selection()
+        if not selection:
+            return
+        item_id = selection[0]
+        node = self.item_nodes.get(item_id, {})
+        if node.get("kind") != "hardware":
+            return
+        self.hardware_var.set(node.get("name", "all"))
+        self.hw_group_var.set(False)
+        self._rebuild_tree()
+
+    def _on_tree_double_click(self, _event=None) -> None:
+        if self.hw_group_var.get():
+            self._drill_into_selected_hardware()
+        else:
+            self._toggle_selected_favorite()
 
     def _capture_open_paths(self) -> None:
         paths: set[str] = set()
@@ -2232,6 +2268,11 @@ class SensorApp:
     def _scope_button_style_name(scope: str, active_scope: str) -> str:
         """Return the ttk style name for a scope button given the currently active scope."""
         return "Scope.Active.TButton" if scope == active_scope else "Scope.TButton"
+
+    @staticmethod
+    def _hardware_names_from_payload(payload: dict) -> list[str]:
+        """Return names of direct hardware-kind children of a machine payload node."""
+        return [child["name"] for child in payload.get("children", []) if child.get("kind") == "hardware"]
 
     def _threshold_text(self, path: str, sensor_type: str, value: float | None, unit: str) -> str:
         thresholds = self._thresholds_for_path(path, sensor_type)

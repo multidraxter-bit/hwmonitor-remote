@@ -256,3 +256,30 @@ def test_scope_button_style_active():
 
 def test_scope_button_style_inactive():
     assert SensorApp._scope_button_style_name("active", "all") == "Scope.TButton"
+
+
+def test_hardware_names_from_payload_returns_hardware_nodes():
+    payload = {
+        "kind": "machine",
+        "name": "PC",
+        "children": [
+            {"kind": "hardware", "name": "Intel CPU", "children": []},
+            {"kind": "hardware", "name": "NVIDIA GPU", "children": []},
+        ],
+    }
+    assert SensorApp._hardware_names_from_payload(payload) == ["Intel CPU", "NVIDIA GPU"]
+
+
+def test_hardware_names_from_payload_excludes_non_hardware():
+    payload = {
+        "kind": "machine",
+        "children": [
+            {"kind": "group", "name": "Temperatures"},
+            {"kind": "hardware", "name": "CPU"},
+        ],
+    }
+    assert SensorApp._hardware_names_from_payload(payload) == ["CPU"]
+
+
+def test_hardware_names_from_payload_empty():
+    assert SensorApp._hardware_names_from_payload({}) == []

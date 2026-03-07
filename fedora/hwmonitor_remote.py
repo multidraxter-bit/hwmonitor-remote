@@ -351,7 +351,7 @@ class SensorApp:
             value_var = tk.StringVar(value="--")
             detail_var = tk.StringVar(value="")
             ttk.Label(card_frame, textvariable=value_var, style="CardValue.TLabel").pack(anchor="w", pady=(4, 0))
-            ttk.Label(card_frame, textvariable=detail_var, style="CardDetail.TLabel").pack(anchor="w", pady=(4, 0))
+            ttk.Label(card_frame, textvariable=detail_var, style="CardDetail.TLabel", wraplength=160).pack(anchor="w", pady=(4, 0))
             self.summary_value_vars[title] = value_var
             self.summary_detail_vars[title] = detail_var
             bar_canvas = tk.Canvas(card_frame, height=6, bg="#27313c", highlightthickness=0, bd=0)
@@ -1118,8 +1118,7 @@ class SensorApp:
         for name, row in summaries.items():
             if row:
                 self.summary_value_vars[name].set(self._value_text(row))
-                source_name = self._source_for_path(row.path)
-                detail = f"{row.name}  |  {SensorApp._severity_text(row.severity)}  |  {source_name}  |  {self._history_text(row.path)}"
+                detail = f"{row.name}  |  {SensorApp._severity_text(row.severity)}  |  {self._history_text(row.path)}"
                 if name == "GPU" and gpu_load:
                     detail += f"  |  Load {self._value_text(gpu_load)}"
                 self.summary_detail_vars[name].set(detail)

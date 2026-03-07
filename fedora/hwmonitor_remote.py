@@ -157,6 +157,8 @@ class SensorApp:
         self.problem_paths: list[str] = []
         self.scope_buttons: dict[str, ttk.Button] = {}
         self.active_scope: str = "all"
+        self.ssh_script_path_var = tk.StringVar(value=DEFAULT_SSH_SCRIPT)
+        self.ssh_extra_args_var = tk.StringVar(value="")
         self._load_saved_state()
 
         self._build_ui()

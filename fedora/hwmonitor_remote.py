@@ -572,6 +572,14 @@ class SensorApp:
 
         self._update_source_presets_ui()
         self.root.after(150, self._set_initial_layout)
+        self.url_var.trace_add("write", self._refresh_ssh_settings_visibility)
+        self._refresh_ssh_settings_visibility()
+
+    def _refresh_ssh_settings_visibility(self, *_args) -> None:
+        if self.url_var.get().startswith("ssh://"):
+            self.ssh_settings_frame.grid()
+        else:
+            self.ssh_settings_frame.grid_remove()
 
     def _set_app_icon(self) -> None:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -1,6 +1,7 @@
 # tests/test_alerts.py
 import sys
 import os
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "fedora"))
 
 from hwmonitor_remote import AlertEvent, SensorApp, SensorRow
@@ -214,9 +215,6 @@ def test_wallboard_texts_for_stable_system():
     assert "Monitoring 120 sensors" in detail
 
 
-import pytest
-
-
 def test_bar_fill_temperature_normal():
     assert SensorApp._bar_fill(45.0, "Temperature") == pytest.approx(45.0 / 90.0)
 
@@ -242,3 +240,11 @@ def test_bar_color_severity():
     assert SensorApp._bar_color("critical") == "#ff5d5d"
     assert SensorApp._bar_color("cool") == "#37c871"
     assert SensorApp._bar_color("normal") == "#37c871"
+
+
+def test_bar_fill_unknown_sensor_type_returns_zero():
+    assert SensorApp._bar_fill(100.0, "Voltage") == 0.0
+
+
+def test_bar_fill_fan_clamps_above_3000():
+    assert SensorApp._bar_fill(6000.0, "Fan") == 1.0

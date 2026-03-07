@@ -325,6 +325,7 @@ class SensorApp:
             bar_canvas = tk.Canvas(card_frame, height=6, bg="#27313c", highlightthickness=0, bd=0)
             bar_canvas.pack(fill="x", pady=(6, 0))
             self.summary_bar_canvases[title] = bar_canvas
+            bar_canvas.bind("<Configure>", lambda _e, n=title: self._redraw_summary_bar(n, None))
 
         insights_tabs = ttk.Notebook(overview, style="Overview.TNotebook")
         insights_tabs.pack(fill="both", expand=True, pady=(8, 0))
@@ -984,7 +985,9 @@ class SensorApp:
         if canvas is None:
             return
         canvas.delete("all")
-        w = canvas.winfo_width() or int(canvas.cget("width"))
+        w = canvas.winfo_width()
+        if w <= 1:
+            return  # not yet laid out — will be redrawn by <Configure> binding
         h = int(canvas.cget("height"))
         canvas.create_rectangle(0, 0, w, h, fill="#27313c", outline="")
         if row is None or row.value is None:

@@ -150,7 +150,7 @@ class SensorApp:
         self.header_source_var = tk.StringVar(value="Waiting for data")
         self.header_snapshot_var = tk.StringVar(value="No snapshot yet")
         self.header_filter_var = tk.StringVar(value="Filters: all sensors")
-        self.header_alert_var = tk.StringVar(value="Alerts: none")
+        self.header_alert_var = tk.StringVar(value="none")
         self.wallboard_title_var = tk.StringVar(value="Wallboard Off")
         self.wallboard_detail_var = tk.StringVar(value="Toggle wallboard mode for passive monitoring")
         self._banner_dismissed = False
@@ -584,6 +584,8 @@ class SensorApp:
         self._refresh_ssh_settings_visibility()
         if not self.settings_expanded.get():
             self.settings_panel.grid_remove()
+        else:
+            self.settings_toggle_btn.configure(text="✕")
 
     def _refresh_ssh_settings_visibility(self, *_args) -> None:
         if self.url_var.get().startswith("ssh://"):

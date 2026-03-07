@@ -2519,6 +2519,8 @@ class SensorApp:
                     "favorite_paths": sorted(self.favorite_paths),
                     "muted_paths": sorted(self.muted_paths),
                     "threshold_overrides": self.threshold_overrides,
+                    "ssh_script_path": self.ssh_script_path_var.get(),
+                    "ssh_extra_args": self.ssh_extra_args_var.get(),
                     "alert_history": [event.__dict__ for event in self.alert_history[:200]],
                 },
                 handle,

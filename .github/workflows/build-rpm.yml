@@ -41,7 +41,7 @@ jobs:
           cp -v ~/rpmbuild/SOURCES/*.tar.gz artifacts/
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hwmonitor-remote-rpms
           path: artifacts/*
